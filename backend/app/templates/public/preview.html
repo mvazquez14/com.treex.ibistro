@@ -1,0 +1,13 @@
+{% if error %}
+<p role="alert">{{ error }}</p>
+{% elif preview %}
+  {% if preview.show_prices %}
+  <p>Paquete {{ preview.package_name }}</p>
+  <p>Meseros: {{ preview.waiters_count }}</p>
+  <p>Subtotal {{ preview.subtotal | pesos }}</p>
+  <p>IVA {{ preview.tax_amount | pesos }}</p>
+  <p>Total {{ preview.total_amount | pesos }}</p>
+  {% else %}
+  <p>Cotización lista para revisión personalizada</p>
+  {% endif %}
+{% endif %}

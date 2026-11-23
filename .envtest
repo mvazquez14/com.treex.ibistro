@@ -1,0 +1,62 @@
+# Domain
+# Used by Traefik to route traffic and acquire TLS certificates
+DOMAIN=ibistro.test.treex.com.mx
+
+# Used by the backend to generate links in emails
+FRONTEND_HOST=https://dashboard.ibistro.test.treex.com.mx
+
+# Environment: local, staging, production
+ENVIRONMENT=staging
+
+PROJECT_NAME="TreeX iBistro"
+STACK_NAME=ibistro-test
+COMPOSE_PROJECT_NAME=ibistro-test
+
+# Backend
+CORS_ORIGINS=*
+SECRET_KEY=c4e8a1b79d2f4063a85e1c90b7d34f62e0a91c58d6b47f23a0e5c8d91b34f670
+FIRST_SUPERUSER=admin@treex.com.mx
+FIRST_SUPERUSER_PASSWORD=Erptw3.4e!
+
+# Emails
+SMTP_HOST=mail.treex.com.mx
+SMTP_USER=no-reply@treex.com.mx
+SMTP_PASSWORD=Erptw3.4e!
+EMAILS_FROM_EMAIL=no-reply@treex.com.mx
+SMTP_TLS=True
+SMTP_SSL=False
+SMTP_PORT=465
+
+# Postgres (shared nuna server)
+POSTGRES_SERVER=nuna-db
+POSTGRES_PORT=5432
+POSTGRES_DB=ibistroDB
+POSTGRES_USER=treexusr
+POSTGRES_PASSWORD=z7A3f91Y9r7V
+
+SENTRY_DSN=
+
+# Email for Let's Encrypt certificate notifications
+EMAIL=admin@treex.com.mx
+
+# Configure these with your own Docker registry images
+DOCKER_IMAGE_BACKEND=ibistro-test-backend
+
+MOCK_MODE=false
+NUNA_ISSUER=test.treex.com.mx
+NUNA_TOKEN_URL=https://api.test.treex.com.mx/oauth/token
+NUNA_JWKS_URL=https://api.test.treex.com.mx/.well-known/jwks.json
+NUNA_LOGIN_URL=https://test.treex.com.mx/login
+NUNA_LOGOUT_URL=https://test.treex.com.mx/oauth/logout
+NUNA_BILLING_URL=https://test.treex.com.mx/billing
+NUNA_CLIENT_ID=ibistro
+NUNA_CLIENT_SECRET=
+NUNA_AUDIENCE=ibistro
+NUNA_WEBHOOK_SECRET=15236f2a1e68e38c6e81c22199b80551d0a8e72d153b3300f3dd77255fae1572
+NUNA_REDIRECT_URI=https://dashboard.ibistro.test.treex.com.mx/api/auth/callback
+NUNA_POST_LOGOUT_REDIRECT_URI=https://dashboard.ibistro.test.treex.com.mx
+SESSION_SECRET=
+SESSION_COOKIE_NAME=ibistro_session
+IBISTRO_PUBLIC_BASE_URL=https://ibistro.test.treex.com.mx
+IBISTRO_CONCIERGE_PHONE=
+ORION_SERVICE_TOKEN=

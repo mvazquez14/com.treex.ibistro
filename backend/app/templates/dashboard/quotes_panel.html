@@ -1,0 +1,121 @@
+<div id="panel" class="space-y-8">
+  <header>
+    <h1 class="text-2xl font-semibold">Cotizaciones</h1>
+    <p class="mt-1 text-sm text-zinc-400">
+      Descuento, IVA y PDF. Al aprobar se crea la reservación y se compromete el stock.
+      <a class="text-[#FFC72C] hover:text-[#FEDD62]" href="/c/{{ screen.slug }}">Ver micro-landing</a>
+    </p>
+  </header>
+  {% if error %}
+  <p class="rounded-lg border border-red-900 bg-red-950 px-3 py-2 text-red-200" role="alert">{{ error }}</p>
+  {% endif %}
+
+  <section class="card rounded-xl border border-zinc-800 p-5">
+    <h2 class="text-lg font-medium">Horarios de servicio</h2>
+    <form class="mt-4 grid gap-3 md:grid-cols-4" method="post" action="/dashboard/quotes/slots" hx-post="/dashboard/quotes/slots" hx-target="#panel" hx-swap="outerHTML">
+      <label class="text-sm text-zinc-300">Día
+        <select name="day_of_week">
+          <option value="0">Lunes</option>
+          <option value="1">Martes</option>
+          <option value="2">Miércoles</option>
+          <option value="3">Jueves</option>
+          <option value="4">Viernes</option>
+          <option value="5">Sábado</option>
+          <option value="6">Domingo</option>
+        </select>
+      </label>
+      <label class="text-sm text-zinc-300">Inicio<input name="start_time" type="time" value="10:00" required></label>
+      <label class="text-sm text-zinc-300">Fin<input name="end_time" type="time" value="12:00" required></label>
+      <label class="text-sm text-zinc-300">Estado
+        <select name="is_active">
+          <option value="true" selected>Activo</option>
+          <option value="false">Inactivo</option>
+        </select>
+      </label>
+      <button class="primary rounded-lg px-3 py-2 md:col-span-4" type="submit">Guardar horario</button>
+    </form>
+    <ul class="mt-4 space-y-2 text-sm">
+      {% for slot in screen.slots %}
+      <li class="flex items-center justify-between gap-3">
+        <span>{{ slot.day_name }} {{ slot.label }}{% if not slot.is_active %} · inactivo{% endif %}</span>
+        <form method="post" action="/dashboard/quotes/slots/{{ slot.id }}/delete" hx-post="/dashboard/quotes/slots/{{ slot.id }}/delete" hx-target="#panel" hx-swap="outerHTML">
+          <button class="text-red-300" type="submit">Quitar</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="card rounded-xl border border-zinc-800 p-5">
+    <h2 class="text-lg font-medium">Galería</h2>
+    <form class="mt-4 grid gap-3 md:grid-cols-3" method="post" action="/dashboard/quotes/photos" hx-post="/dashboard/quotes/photos" hx-target="#panel" hx-swap="outerHTML">
+      <label class="text-sm text-zinc-300 md:col-span-2">URL de la foto<input name="image_url" placeholder="https://" required></label>
+      <label class="text-sm text-zinc-300">Orden<input name="display_order" type="number" min="0" value="0"></label>
+      <label class="text-sm text-zinc-300 md:col-span-3">Pie de foto<input name="caption"></label>
+      <button class="primary rounded-lg px-3 py-2 md:col-span-3" type="submit">Agregar foto</button>
+    </form>
+    <ul class="mt-4 space-y-2 text-sm">
+      {% for photo in screen.photos %}
+      <li class="flex items-center justify-between gap-3">
+        <span>{{ photo.caption or photo.image_url }}</span>
+        <form method="post" action="/dashboard/quotes/photos/{{ photo.id }}/delete" hx-post="/dashboard/quotes/photos/{{ photo.id }}/delete" hx-target="#panel" hx-swap="outerHTML">
+          <button class="text-red-300" type="submit">Quitar</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="card rounded-xl border border-zinc-800 p-5">
+    <h2 class="text-lg font-medium">Zonas de entrega</h2>
+    <form class="mt-4 grid gap-3 md:grid-cols-3" method="post" action="/dashboard/quotes/zones" hx-post="/dashboard/quotes/zones" hx-target="#panel" hx-swap="outerHTML">
+      <label class="text-sm text-zinc-300 md:col-span-2">Zona<input name="zone_name" required></label>
+      <label class="text-sm text-zinc-300">Flete<input name="freight_cost" inputmode="decimal" value="0" required></label>
+      <button class="primary rounded-lg px-3 py-2 md:col-span-3" type="submit">Guardar zona</button>
+    </form>
+    <ul class="mt-4 space-y-1 text-sm text-zinc-300">
+      {% for zone in screen.zones %}
+      <li>{{ zone.zone_name }} · {{ zone.freight_cost | pesos }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="space-y-4">
+    <h2 class="text-lg font-medium">Cotizaciones recibidas</h2>
+    {% if not screen.quotes %}
+    <p class="text-sm text-zinc-400">Aún no hay cotizaciones.</p>
+    {% endif %}
+    {% for quote in screen.quotes %}
+    <article class="card rounded-xl border border-zinc-800 p-5">
+      <header class="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 class="font-medium">{{ quote.lead_name }} · {{ quote.package_name }}</h3>
+        <p class="text-sm text-[#FFC72C]">{{ quote.status_label }} · {{ quote.total_amount | pesos }}</p>
+      </header>
+      <p class="mt-2 text-sm text-zinc-400">{{ quote.event_date }} {{ quote.slot_label }} · {{ quote.guest_count }} invitados · {{ quote.venue_address }}</p>
+      <p class="mt-1 text-sm text-zinc-300">Subtotal {{ quote.subtotal | pesos }} · Descuento {{ quote.discount_amount | pesos }} · IVA {{ quote.tax_amount | pesos }}</p>
+      <p class="text-sm text-zinc-500">Folio {{ quote.public_token }}</p>
+      <form class="mt-4 grid gap-3 md:grid-cols-4" method="post" action="/dashboard/quotes/{{ quote.id }}/adjust" hx-post="/dashboard/quotes/{{ quote.id }}/adjust" hx-target="#panel" hx-swap="outerHTML">
+        <label class="text-sm text-zinc-300">Descuento<input name="discount_amount" inputmode="decimal" value="{{ quote.discount_amount }}"></label>
+        <label class="text-sm text-zinc-300">IVA
+          <input name="tax_rate" inputmode="decimal" value="{% if quote.apply_tax %}{{ quote.tax_rate }}{% else %}{{ screen.tax_rate }}{% endif %}">
+        </label>
+        <label class="flex items-end gap-2 text-sm text-zinc-300">
+          <input class="h-4 w-4" type="checkbox" name="apply_tax" value="true" {% if quote.apply_tax %}checked{% endif %}>
+          Cobrar IVA
+        </label>
+        <button class="primary rounded-lg px-3 py-2" type="submit">Actualizar precio</button>
+      </form>
+      <div class="mt-4 flex flex-wrap gap-3 text-sm">
+        <a class="text-[#FFC72C] hover:text-[#FEDD62]" href="/dashboard/quotes/{{ quote.id }}/pdf">Descargar PDF</a>
+        {% if quote.reservation_id %}
+        <p>Reservación {{ quote.reservation_id }}</p>
+        {% else %}
+        <form method="post" action="/dashboard/quotes/{{ quote.id }}/convert" hx-post="/dashboard/quotes/{{ quote.id }}/convert" hx-target="#panel" hx-swap="outerHTML">
+          <button class="primary rounded-lg px-3 py-2" type="submit">Aprobar y Convertir a Reservación</button>
+        </form>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </section>
+</div>

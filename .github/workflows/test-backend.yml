@@ -12,6 +12,8 @@ jobs:
   test-backend:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      COMPOSE_FILE: compose.yml:compose.override.yml:compose.ci.yml
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -26,7 +28,7 @@ jobs:
         with:
           version: "latest-known"
       - run: docker compose down -v --remove-orphans
-      - run: docker compose up -d --wait db mailpit
+      - run: docker compose up -d --wait nuna-db mailpit ensure-db
       - name: Migrate DB
         run: uv run bash scripts/prestart.sh
         working-directory: backend

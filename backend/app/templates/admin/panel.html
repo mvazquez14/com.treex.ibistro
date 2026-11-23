@@ -1,0 +1,82 @@
+<div id="admin-panel" class="space-y-8">
+  {% if error %}
+  <p class="rounded-lg border border-red-900 bg-red-950 px-4 py-3 text-red-200">{{ error }}</p>
+  {% endif %}
+
+  <section class="card rounded-xl p-5">
+    <h1 class="mb-4 text-lg font-semibold">Categorías</h1>
+    <form class="mb-4 grid gap-3 md:grid-cols-4" method="post" action="/admin/categories"
+          hx-post="/admin/categories" hx-target="#admin-panel" hx-swap="outerHTML">
+      <input name="name" placeholder="Nombre" required>
+      <input name="icon" placeholder="Icono">
+      <label class="flex items-center gap-2 text-sm">
+        <input class="h-4 w-4" type="checkbox" name="is_active" value="on" checked> Activa
+      </label>
+      <button class="primary rounded-lg px-4 py-2" type="submit">Guardar categoría</button>
+    </form>
+    <ul class="space-y-3">
+      {% for category in screen.categories %}
+      <li>
+        <form class="grid gap-3 md:grid-cols-5" method="post" action="/admin/categories/{{ category.id }}"
+              hx-post="/admin/categories/{{ category.id }}" hx-target="#admin-panel" hx-swap="outerHTML">
+          <input name="name" value="{{ category.name }}">
+          <input name="icon" value="{{ category.icon }}">
+          <span class="self-center text-sm text-zinc-400">{{ category.slug }}</span>
+          <label class="flex items-center gap-2 text-sm">
+            <input class="h-4 w-4" type="checkbox" name="is_active" value="on" {% if category.is_active %}checked{% endif %}> Activa
+          </label>
+          <button class="primary rounded-lg px-4 py-2" type="submit">Actualizar</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="card rounded-xl p-5">
+    <h2 class="mb-4 text-lg font-semibold">Proveedores</h2>
+    <div class="space-y-4">
+      {% for tenant in screen.tenants %}
+      <article class="rounded-lg border border-zinc-800 p-4">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p class="font-medium">{{ tenant.business_name }}</p>
+            <p class="text-sm text-zinc-400">{{ tenant.slug }}</p>
+          </div>
+          <p class="text-sm">Plan: {% if tenant.has_active_plan %}Activo{% else %}Inactivo{% endif %}</p>
+        </div>
+        <form class="grid gap-3 md:grid-cols-2" method="post" action="/admin/tenants/{{ tenant.id }}"
+              hx-post="/admin/tenants/{{ tenant.id }}" hx-target="#admin-panel" hx-swap="outerHTML">
+          <label class="flex items-center gap-2 text-sm">
+            <input class="h-4 w-4" type="checkbox" name="is_verified_concierge" value="on"
+                   {% if tenant.is_verified_concierge %}checked{% endif %}>
+            Verificado para concierge
+          </label>
+          <label class="text-sm">
+            Prioridad
+            <input name="concierge_priority_score" type="number" min="0" value="{{ tenant.concierge_priority_score }}">
+          </label>
+          <div class="flex flex-wrap gap-4 text-sm md:col-span-2">
+            {% for module in screen.modules %}
+            <label class="flex items-center gap-2">
+              <input class="h-4 w-4" type="checkbox" name="module" value="{{ module }}"
+                     {% if module in tenant.enabled_modules %}checked{% endif %}>
+              {{ screen.module_labels[module] }}
+            </label>
+            {% endfor %}
+          </div>
+          <button class="primary rounded-lg px-4 py-2" type="submit">Guardar proveedor</button>
+        </form>
+        <div class="mt-3 flex flex-wrap gap-3">
+          <form method="post" action="/admin/impersonate/{{ tenant.id }}">
+            <button class="rounded-lg border border-zinc-700 px-4 py-2 text-sm" type="submit">Entrar a la cuenta</button>
+          </form>
+          <form method="post" action="/admin/tenants/{{ tenant.id }}/clone-templates"
+                hx-post="/admin/tenants/{{ tenant.id }}/clone-templates" hx-target="#admin-panel" hx-swap="outerHTML">
+            <button class="rounded-lg border border-zinc-700 px-4 py-2 text-sm" type="submit">Clonar catálogo</button>
+          </form>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+</div>

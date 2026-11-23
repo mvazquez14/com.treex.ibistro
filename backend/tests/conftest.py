@@ -2,41 +2,28 @@ from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session, delete
 
-from app.core.config import settings
-from app.core.db import engine, init_db
+from app.api.deps import get_session
 from app.main import app
-from app.models import Item, User
-from tests.utils.user import authentication_token_from_email
-from tests.utils.utils import get_superuser_token_headers
+from tests.memory_db import MemorySession, SessionScope
 
 
-@pytest.fixture(scope="session", autouse=True)
-def db() -> Generator[Session]:
-    with Session(engine) as session:
-        init_db(session)
+@pytest.fixture(autouse=True)
+def memory_db(monkeypatch: pytest.MonkeyPatch) -> Generator[MemorySession]:
+    session = MemorySession()
+    scope = SessionScope(session)
+    monkeypatch.setattr("app.core.db.async_session_maker", scope)
+    monkeypatch.setattr("app.seed.async_session_maker", scope)
+
+    async def override() -> Generator[MemorySession]:
         yield session
-        statement = delete(Item)
-        session.execute(statement)
-        statement = delete(User)
-        session.execute(statement)
-        session.commit()
+
+    app.dependency_overrides[get_session] = override
+    yield session
+    app.dependency_overrides.clear()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def client() -> Generator[TestClient]:
-    with TestClient(app) as c:
-        yield c
-
-
-@pytest.fixture(scope="module")
-def superuser_token_headers(client: TestClient) -> dict[str, str]:
-    return get_superuser_token_headers(client)
-
-
-@pytest.fixture(scope="module")
-def normal_user_token_headers(client: TestClient, db: Session) -> dict[str, str]:
-    return authentication_token_from_email(
-        client=client, email=settings.EMAIL_TEST_USER, db=db
-    )
+    with TestClient(app, follow_redirects=False) as test_client:
+        yield test_client

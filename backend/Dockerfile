@@ -62,4 +62,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 WORKDIR /app/backend/
 
+RUN mkdir -p /app/uploads
+
 CMD ["fastapi", "run", "--workers", "4"]

@@ -1,36 +1,21 @@
-from datetime import UTC, datetime, timedelta
-from typing import Any
+from base64 import urlsafe_b64encode
+from hashlib import sha256
 
-import jwt
-from pwdlib import PasswordHash
-from pwdlib.hashers.argon2 import Argon2Hasher
-from pwdlib.hashers.bcrypt import BcryptHasher
+from cryptography.fernet import Fernet
 
 from app.core.config import settings
-
-password_hash = PasswordHash(
-    (
-        Argon2Hasher(),
-        BcryptHasher(),
-    )
-)
-
 
 ALGORITHM = "HS256"
 
 
-def create_access_token(subject: str | Any, expires_delta: timedelta) -> str:
-    expire = datetime.now(UTC) + expires_delta
-    to_encode = {"exp": expire, "sub": str(subject)}
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+def _session_fernet() -> Fernet:
+    digest = sha256(settings.SESSION_SECRET.encode()).digest()
+    return Fernet(urlsafe_b64encode(digest))
 
 
-def verify_password(
-    plain_password: str, hashed_password: str
-) -> tuple[bool, str | None]:
-    return password_hash.verify_and_update(plain_password, hashed_password)
+def encrypt_session(value: str) -> str:
+    return _session_fernet().encrypt(value.encode()).decode()
 
 
-def get_password_hash(password: str) -> str:
-    return password_hash.hash(password)
+def decrypt_session(value: str) -> str:
+    return _session_fernet().decrypt(value.encode()).decode()

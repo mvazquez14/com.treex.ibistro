@@ -1,0 +1,104 @@
+<div id="panel" class="space-y-8">
+  <header>
+    <h1 class="text-2xl font-semibold">Equipo y mantelería</h1>
+    <p class="mt-1 text-sm text-zinc-400">Activos y reglas por paquete. Las unidades son una vista previa: esta fase no reserva equipo por fecha.</p>
+  </header>
+  {% if error %}
+  <p class="rounded-lg border border-red-900 bg-red-950 px-3 py-2 text-red-200" role="alert">{{ error }}</p>
+  {% endif %}
+
+  <section class="card rounded-xl border border-zinc-800 p-5" x-data="{ guests: {{ snapshot.guests }}, per: 25 }">
+    <h2 class="text-lg font-medium">Vista previa de unidades</h2>
+    <div class="mt-4 grid gap-3 md:grid-cols-3">
+      <label class="text-sm text-zinc-300">Invitados<input type="number" min="0" x-model.number="guests"></label>
+      <label class="text-sm text-zinc-300">Invitados por unidad<input type="number" min="1" x-model.number="per"></label>
+      <p class="self-end text-sm text-[#FFC72C]">Unidades: <span x-text="per > 0 ? Math.ceil(guests / per) : 0"></span></p>
+    </div>
+    <form class="mt-4 flex flex-wrap items-end gap-3" method="get" action="/dashboard/equipment">
+      <label class="text-sm text-zinc-300">Calcular reglas para
+        <input name="guests" type="number" min="0" value="{{ snapshot.guests }}">
+      </label>
+      <button class="primary rounded-lg px-3 py-2" type="submit">Actualizar vista</button>
+    </form>
+  </section>
+
+  <section class="card rounded-xl border border-zinc-800 p-5">
+    <h2 class="text-lg font-medium">Activos</h2>
+    <form class="mt-4 grid gap-3 md:grid-cols-3" method="post" action="/dashboard/equipment/assets?guests={{ snapshot.guests }}" hx-post="/dashboard/equipment/assets?guests={{ snapshot.guests }}" hx-target="#panel" hx-swap="outerHTML">
+      <label class="text-sm text-zinc-300">Nombre<input name="name" required></label>
+      <label class="text-sm text-zinc-300">Categoría
+        <select name="category">
+          <option value="Manteleria">Mantelería</option>
+          <option value="Mobiliario">Mobiliario</option>
+          <option value="Loza">Loza</option>
+          <option value="Calentamiento">Calentamiento</option>
+          <option value="Cristaleria">Cristalería</option>
+        </select>
+      </label>
+      <label class="text-sm text-zinc-300">Existencia<input name="total_stock" type="number" min="0" value="0" required></label>
+      <label class="text-sm text-zinc-300">Renta por unidad<input name="rental_price_per_unit" type="number" min="0" step="0.01" value="0"></label>
+      <label class="text-sm text-zinc-300">Costo de reposición<input name="replacement_cost" type="number" min="0" step="0.01" value="0" required></label>
+      <button class="primary rounded-lg px-3 py-2" type="submit">Guardar equipo</button>
+    </form>
+    {% for asset in snapshot.assets %}
+    <form class="mt-4 grid gap-3 rounded-lg border border-zinc-800 p-3 md:grid-cols-3" method="post" action="/dashboard/equipment/assets/{{ asset.id }}?guests={{ snapshot.guests }}" hx-post="/dashboard/equipment/assets/{{ asset.id }}?guests={{ snapshot.guests }}" hx-target="#panel" hx-swap="outerHTML">
+      <label class="text-sm text-zinc-300">Nombre<input name="name" value="{{ asset.name }}" required></label>
+      <label class="text-sm text-zinc-300">Categoría
+        <select name="category">
+          {% for code, label in [("Manteleria", "Mantelería"), ("Mobiliario", "Mobiliario"), ("Loza", "Loza"), ("Calentamiento", "Calentamiento"), ("Cristaleria", "Cristalería")] %}
+          <option value="{{ code }}" {% if asset.category == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="text-sm text-zinc-300">Existencia<input name="total_stock" type="number" min="0" value="{{ asset.total_stock }}" required></label>
+      <label class="text-sm text-zinc-300">Renta por unidad<input name="rental_price_per_unit" type="number" min="0" step="0.01" value="{{ asset.rental_price_per_unit }}"></label>
+      <label class="text-sm text-zinc-300">Costo de reposición<input name="replacement_cost" type="number" min="0" step="0.01" value="{{ asset.replacement_cost }}" required></label>
+      <button class="primary rounded-lg px-3 py-2" type="submit">Actualizar equipo</button>
+    </form>
+    <form method="post" action="/dashboard/equipment/assets/{{ asset.id }}/delete?guests={{ snapshot.guests }}" hx-post="/dashboard/equipment/assets/{{ asset.id }}/delete?guests={{ snapshot.guests }}" hx-target="#panel" hx-swap="outerHTML">
+      <button class="text-sm text-red-300" type="submit">Eliminar equipo</button>
+    </form>
+    {% else %}
+    <p class="mt-4 text-sm text-zinc-500">Todavía no hay equipo.</p>
+    {% endfor %}
+  </section>
+
+  <section class="card rounded-xl border border-zinc-800 p-5">
+    <h2 class="text-lg font-medium">Reglas por paquete</h2>
+    {% if snapshot.packages and snapshot.assets %}
+    <form class="mt-4 grid gap-3 md:grid-cols-3" method="post" action="/dashboard/equipment/rules?guests={{ snapshot.guests }}" hx-post="/dashboard/equipment/rules?guests={{ snapshot.guests }}" hx-target="#panel" hx-swap="outerHTML">
+      <label class="text-sm text-zinc-300">Paquete
+        <select name="package_id" required>
+          {% for package in snapshot.packages %}
+          <option value="{{ package.id }}">{{ package.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="text-sm text-zinc-300">Equipo
+        <select name="asset_id" required>
+          {% for asset in snapshot.assets %}
+          <option value="{{ asset.id }}">{{ asset.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="text-sm text-zinc-300">Invitados por unidad<input name="guests_per_unit" type="number" min="1" value="25" required></label>
+      <button class="primary rounded-lg px-3 py-2" type="submit">Guardar regla</button>
+    </form>
+    {% else %}
+    <p class="mt-4 text-sm text-zinc-500">Necesitas al menos un paquete y un activo para crear una regla.</p>
+    {% endif %}
+    {% for rule in snapshot.rules %}
+    <form class="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-zinc-800 p-3" method="post" action="/dashboard/equipment/rules/{{ rule.id }}?guests={{ snapshot.guests }}" hx-post="/dashboard/equipment/rules/{{ rule.id }}?guests={{ snapshot.guests }}" hx-target="#panel" hx-swap="outerHTML">
+      <p class="text-sm">{{ rule.package_name }} · {{ rule.asset_name }}</p>
+      <label class="text-sm text-zinc-300">Invitados por unidad<input name="guests_per_unit" type="number" min="1" value="{{ rule.guests_per_unit }}"></label>
+      <p class="text-sm text-[#FFC72C]">{{ rule.units_for_guests }} unidades para {{ snapshot.guests }} invitados</p>
+      <button class="primary rounded-lg px-3 py-2" type="submit">Actualizar regla</button>
+    </form>
+    <form method="post" action="/dashboard/equipment/rules/{{ rule.id }}/delete?guests={{ snapshot.guests }}" hx-post="/dashboard/equipment/rules/{{ rule.id }}/delete?guests={{ snapshot.guests }}" hx-target="#panel" hx-swap="outerHTML">
+      <button class="text-sm text-red-300" type="submit">Eliminar regla</button>
+    </form>
+    {% else %}
+    <p class="mt-4 text-sm text-zinc-500">Todavía no hay reglas.</p>
+    {% endfor %}
+  </section>
+</div>

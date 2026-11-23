@@ -1,0 +1,6 @@
+<p>Hola {{ lead_name }},</p>
+<p>{{ business_name }} recibió tu cotización para el {{ event_date }}.</p>
+<p>Folio {{ token }}</p>
+{% if tracking_url %}
+<p><a href="{{ tracking_url }}">Seguir por WhatsApp</a></p>
+{% endif %}

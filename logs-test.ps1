@@ -1,0 +1,1 @@
+wsl ssh -o StrictHostKeyChecking=no root@108.181.187.202 "cd /root/code/ibistro/app/ && docker compose logs -f --tail=100"

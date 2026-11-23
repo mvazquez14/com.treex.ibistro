@@ -1,88 +1,125 @@
+name: ${STACK_NAME:-ibistro}
+
+x-backend-env: &backend-env
+  PROJECT_NAME: ${PROJECT_NAME:?Variable not set}
+  SECRET_KEY: ${SECRET_KEY:?Variable not set}
+  FIRST_SUPERUSER: ${FIRST_SUPERUSER:?Variable not set}
+  FIRST_SUPERUSER_PASSWORD: ${FIRST_SUPERUSER_PASSWORD:?Variable not set}
+  FRONTEND_HOST: ${FRONTEND_HOST:-http://localhost:8000}
+  SMTP_HOST: ${SMTP_HOST}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_TLS: ${SMTP_TLS:-true}
+  SMTP_SSL: ${SMTP_SSL:-false}
+  EMAILS_FROM_EMAIL: ${EMAILS_FROM_EMAIL}
+  POSTGRES_SERVER: nuna-db
+  POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+  POSTGRES_DB: ${POSTGRES_DB:?Variable not set}
+  POSTGRES_USER: ${POSTGRES_USER:?Variable not set}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Variable not set}
+  DATABASE_URL: postgresql://${POSTGRES_USER:?Variable not set}:${POSTGRES_PASSWORD:?Variable not set}@nuna-db:${POSTGRES_PORT:-5432}/${POSTGRES_DB:?Variable not set}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  REDIS_URL: redis://redis:6379/0
+  MOCK_MODE: ${MOCK_MODE:-false}
+  NUNA_ISSUER: ${NUNA_ISSUER:-treex.com.mx}
+  NUNA_TOKEN_URL: ${NUNA_TOKEN_URL:-https://api.treex.com.mx/oauth/token}
+  NUNA_JWKS_URL: ${NUNA_JWKS_URL:-https://api.treex.com.mx/.well-known/jwks.json}
+  NUNA_LOGIN_URL: ${NUNA_LOGIN_URL:-https://treex.com.mx/login}
+  NUNA_LOGOUT_URL: ${NUNA_LOGOUT_URL:-https://treex.com.mx/oauth/logout}
+  NUNA_BILLING_URL: ${NUNA_BILLING_URL:-https://treex.com.mx/billing}
+  NUNA_CLIENT_ID: ${NUNA_CLIENT_ID:-ibistro}
+  NUNA_CLIENT_SECRET: ${NUNA_CLIENT_SECRET:-}
+  NUNA_WEBHOOK_SECRET: ${NUNA_WEBHOOK_SECRET:-}
+  NUNA_REDIRECT_URI: ${NUNA_REDIRECT_URI:-https://dashboard.ibistro.treex.com.mx/api/auth/callback}
+  NUNA_POST_LOGOUT_REDIRECT_URI: ${NUNA_POST_LOGOUT_REDIRECT_URI:-https://ibistro.treex.com.mx}
+  SESSION_SECRET: ${SESSION_SECRET:-}
+  SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-ibistro_session}
+  IBISTRO_PUBLIC_BASE_URL: ${IBISTRO_PUBLIC_BASE_URL:-https://ibistro.treex.com.mx}
+  IBISTRO_CONCIERGE_PHONE: ${IBISTRO_CONCIERGE_PHONE:-}
+  ORION_SERVICE_TOKEN: ${ORION_SERVICE_TOKEN:-}
+
 services:
 
-  proxy:
-    image: traefik:v3.7
-    volumes:
-      # Add Docker as a mounted volume, so that Traefik can read the labels of other services
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    command:
-      # Enable Docker in Traefik, so that it reads labels from Docker services
-      - --providers.docker
-      # Do not expose all Docker services, only the ones explicitly exposed
-      - --providers.docker.exposedbydefault=false
-      # Create an entrypoint "http" listening on port 80
-      - --entrypoints.http.address=:80
-      # Enable the access log, with HTTP requests
-      - --accesslog
-      # Enable the Traefik log, for configurations and errors
-      - --log
-
-  db:
+  ensure-db:
     image: postgres:18
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d app"]
-      interval: 10s
-      retries: 5
-      start_period: 30s
-      timeout: 10s
-    volumes:
-      - app-db-data:/var/lib/postgresql
+    restart: "no"
+    networks:
+      - traefik-public
     environment:
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Variable not set}
-      - POSTGRES_DB=app
+      PGHOST: nuna-db
+      PGUSER: ${POSTGRES_USER:?Variable not set}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Variable not set}
+      POSTGRES_DB: ${POSTGRES_DB:?Variable not set}
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        set -euo pipefail
+        echo "Waiting for nuna-db..."
+        until pg_isready; do sleep 1; done
+        EXISTS="$$(psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$${POSTGRES_DB}'")"
+        if [ -z "$${EXISTS}" ]; then
+          echo "Creating database $${POSTGRES_DB}"
+          psql -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$${POSTGRES_DB}\";"
+        else
+          echo "Database $${POSTGRES_DB} already exists"
+        fi
 
-  adminer:
-    image: adminer
-    depends_on:
-      - db
-    environment:
-      - ADMINER_DESIGN=pepa-linha-dark
-    labels:
-      # Enable Traefik for this service
-      - traefik.enable=true
-      # Route HTTP traffic for the Adminer subdomain
-      - traefik.http.routers.adminer-http.rule=Host(`adminer.${DOMAIN:-localhost}`)
-      - traefik.http.routers.adminer-http.entrypoints=http
-      # Define the port inside of the Docker service to use
-      - traefik.http.services.adminer.loadbalancer.server.port=8080
+  redis:
+    image: redis:7
+    container_name: ${STACK_NAME:-ibistro}-redis
+    networks:
+      - traefik-public
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   backend:
-    image: backend:latest
+    image: ${STACK_NAME:-ibistro}-backend:${TAG:-latest}
+    container_name: ${STACK_NAME:-ibistro}-backend
     depends_on:
-      db:
+      ensure-db:
+        condition: service_completed_successfully
+      redis:
         condition: service_healthy
-        restart: true
+    networks:
+      - traefik-public
     environment:
-      PROJECT_NAME: ${PROJECT_NAME:?Variable not set}
-      SECRET_KEY: ${SECRET_KEY:?Variable not set}
-      FIRST_SUPERUSER: ${FIRST_SUPERUSER:?Variable not set}
-      FIRST_SUPERUSER_PASSWORD: ${FIRST_SUPERUSER_PASSWORD:?Variable not set}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      EMAILS_FROM_EMAIL: ${EMAILS_FROM_EMAIL}
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?Variable not set}@db:5432/app
-      SENTRY_DSN: ${SENTRY_DSN:-}
-
+      <<: *backend-env
+    volumes:
+      - uploads:/app/uploads
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/utils/health-check/"]
       interval: 10s
       timeout: 5s
       retries: 5
-
     build:
       context: .
       dockerfile: backend/Dockerfile
     labels:
-      # Enable Traefik for this service
       - traefik.enable=true
+      - traefik.docker.network=traefik-public
+      - traefik.constraint-label=traefik-public
 
-      # Define the port inside of the Docker service to use
-      - traefik.http.services.backend.loadbalancer.server.port=8000
+      - traefik.http.services.${STACK_NAME:-ibistro}-backend.loadbalancer.server.port=8000
 
-      # Route HTTP traffic for this domain
-      - traefik.http.routers.backend-http.rule=Host(`${DOMAIN:-localhost}`)
-      - traefik.http.routers.backend-http.entrypoints=http
+      - traefik.http.routers.${STACK_NAME:-ibistro}-backend-http.rule=Host(`${DOMAIN:-localhost}`) || Host(`dashboard.${DOMAIN:-localhost}`)
+      - traefik.http.routers.${STACK_NAME:-ibistro}-backend-http.entrypoints=http
+      - traefik.http.routers.${STACK_NAME:-ibistro}-backend-http.middlewares=https-redirect
+      - traefik.http.routers.${STACK_NAME:-ibistro}-backend-http.service=${STACK_NAME:-ibistro}-backend
+
+      - traefik.http.routers.${STACK_NAME:-ibistro}-backend-https.rule=Host(`${DOMAIN:-localhost}`) || Host(`dashboard.${DOMAIN:-localhost}`)
+      - traefik.http.routers.${STACK_NAME:-ibistro}-backend-https.entrypoints=https
+      - traefik.http.routers.${STACK_NAME:-ibistro}-backend-https.service=${STACK_NAME:-ibistro}-backend
+      - traefik.http.routers.${STACK_NAME:-ibistro}-backend-https.tls=true
+      - traefik.http.routers.${STACK_NAME:-ibistro}-backend-https.tls.certresolver=le
 
 volumes:
-  app-db-data:
+  uploads:
+    name: ${STACK_NAME:-ibistro}-uploads
+
+networks:
+  traefik-public:
+    external: true

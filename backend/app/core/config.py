@@ -65,6 +65,30 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER: EmailStr
     FIRST_SUPERUSER_PASSWORD: str
 
+    MOCK_MODE: bool = False
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    NUNA_ISSUER: str = "treex.com.mx"
+    NUNA_TOKEN_URL: str = "https://api.treex.com.mx/oauth/token"
+    NUNA_JWKS_URL: str = "https://api.treex.com.mx/.well-known/jwks.json"
+    NUNA_LOGIN_URL: str = "https://treex.com.mx/login"
+    NUNA_LOGOUT_URL: str = "https://treex.com.mx/oauth/logout"
+    NUNA_BILLING_URL: str = "https://treex.com.mx/billing"
+    NUNA_CLIENT_ID: str = "ibistro"
+    NUNA_CLIENT_SECRET: str = ""
+    NUNA_REDIRECT_URI: str = (
+        "https://dashboard.ibistro.treex.com.mx/api/auth/callback"
+    )
+    NUNA_POST_LOGOUT_REDIRECT_URI: str = "https://ibistro.treex.com.mx"
+    NUNA_WEBHOOK_SECRET: str = ""
+    NUNA_AUDIENCE: str = "ibistro"
+    SESSION_COOKIE_NAME: str = "ibistro_session"
+    SESSION_SECRET: str = ""
+    IBISTRO_CONCIERGE_PHONE: str = ""
+    IBISTRO_PUBLIC_BASE_URL: str = "https://ibistro.treex.com.mx"
+    ORION_SERVICE_TOKEN: str = ""
+    IMPERSONATION_COOKIE_NAME: str = "ibistro_impersonation"
+
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":
             message = (
@@ -84,6 +108,8 @@ class Settings(BaseSettings):
         self._check_default_secret(
             "FIRST_SUPERUSER_PASSWORD", self.FIRST_SUPERUSER_PASSWORD
         )
+        if not self.SESSION_SECRET:
+            self.SESSION_SECRET = self.SECRET_KEY
 
         return self
 

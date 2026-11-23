@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Panel{% endblock %} · iBistro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>
+    <style>
+      body { background: #09090B; color: #fafafa; }
+      .card { background: #18181B; }
+      input, select, textarea {
+        width: 100%;
+        border-radius: 0.5rem;
+        border: 1px solid #3f3f46;
+        background: #09090B;
+        color: #fafafa;
+        padding: 0.45rem 0.7rem;
+      }
+      button.primary { background: #FFC72C; color: #09090B; font-weight: 600; }
+      button.primary:hover { background: #FEDD62; }
+    </style>
+  </head>
+    <body class="min-h-screen bg-[#09090B] text-zinc-100">
+    {% if impersonating %}
+    <div class="bg-[#FFC72C] px-4 py-2 text-center text-sm font-medium text-[#09090B]">
+      Viendo la cuenta de {{ impersonating }}.
+      <form class="inline" method="post" action="/admin/impersonate/stop">
+        <button class="underline" type="submit">Volver al admin</button>
+      </form>
+    </div>
+    {% endif %}
+    <header class="border-b border-zinc-800">
+      <div class="mx-auto flex max-w-6xl items-center gap-6 px-4 py-4">
+        <a href="/dashboard/menu" class="text-xl font-semibold text-[#FFC72C]">iBistro</a>
+        <nav class="flex flex-1 flex-wrap gap-4 text-sm">
+          <a href="/dashboard/menu" class="{% if section == 'menu' %}text-[#FFC72C]{% else %}text-zinc-300 hover:text-[#FEDD62]{% endif %}">Menú</a>
+          <a href="/dashboard/warehouses" class="{% if section == 'warehouses' %}text-[#FFC72C]{% else %}text-zinc-300 hover:text-[#FEDD62]{% endif %}">Almacenes</a>
+          <a href="/dashboard/equipment" class="{% if section == 'equipment' %}text-[#FFC72C]{% else %}text-zinc-300 hover:text-[#FEDD62]{% endif %}">Equipo</a>
+          <a href="/dashboard/quotes" class="{% if section == 'quotes' %}text-[#FFC72C]{% else %}text-zinc-300 hover:text-[#FEDD62]{% endif %}">Cotizaciones</a>
+          <a href="/dashboard/reservations" class="{% if section == 'reservations' %}text-[#FFC72C]{% else %}text-zinc-300 hover:text-[#FEDD62]{% endif %}">Reservaciones</a>
+          <a href="/dashboard/pos" class="{% if section == 'pos' %}text-[#FFC72C]{% else %}text-zinc-300 hover:text-[#FEDD62]{% endif %}">Punto de venta</a>
+          <a href="/dashboard/reports" class="{% if section == 'reports' %}text-[#FFC72C]{% else %}text-zinc-300 hover:text-[#FEDD62]{% endif %}">Reportes</a>
+        </nav>
+        <div class="ml-auto flex items-center gap-4 text-sm">
+          <a href="{{ billing_url }}" class="text-zinc-300 hover:text-[#FEDD62]">Facturación</a>
+          <a href="/api/auth/logout" class="text-zinc-300 hover:text-[#FEDD62]">Cerrar sesión</a>
+        </div>
+      </div>
+    </header>
+    <main class="mx-auto max-w-6xl px-4 py-8">
+      {% block content %}{% endblock %}
+    </main>
+    <script>
+      document.body.addEventListener("htmx:beforeSwap", function (event) {
+        var status = event.detail.xhr.status;
+        if (status === 409 || status === 422 || status === 404) {
+          event.detail.shouldSwap = true;
+          event.detail.isError = false;
+        }
+      });
+    </script>
+  </body>
+</html>

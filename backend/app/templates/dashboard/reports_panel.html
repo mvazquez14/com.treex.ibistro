@@ -1,0 +1,84 @@
+<div id="panel" class="space-y-8">
+  <header>
+    <h1 class="text-2xl font-semibold">Reportes</h1>
+    <p class="mt-1 text-sm text-zinc-400">Corte al {{ screen.generated_on }}.</p>
+  </header>
+
+  <section class="card space-y-3 rounded-xl border border-zinc-800 p-5">
+    <h2 class="text-lg font-medium">Rentabilidad real</h2>
+    {% for row in screen.profitability %}
+    <p class="text-sm text-zinc-300">
+      {{ row.customer_name }} · {{ row.event_date }} ·
+      cobrado {{ row.revenue | pesos }} ·
+      alimentos {{ row.food_cost | pesos }} ·
+      meseros {{ row.waiter_cost | pesos }} ·
+      flete {{ row.freight | pesos }} ·
+      margen {{ row.margin | pesos }} ({{ row.margin_percent }}%)
+    </p>
+    {% else %}
+    <p class="text-sm text-zinc-500">Sin eventos.</p>
+    {% endfor %}
+  </section>
+
+  <section class="card space-y-3 rounded-xl border border-zinc-800 p-5">
+    <h2 class="text-lg font-medium">Explosión de compras</h2>
+    <p class="text-sm text-zinc-400">Próximos 7 días, restando la existencia disponible.</p>
+    {% for row in screen.purchases %}
+    <p class="text-sm text-zinc-300">
+      {{ row.supplier_name }} · {{ row.ingredient_name }} ·
+      necesario {{ row.needed_qty | cantidad }} {{ row.unit }} ·
+      disponible {{ row.available_qty | cantidad }} ·
+      por comprar {{ row.buy_qty | cantidad }}
+    </p>
+    {% else %}
+    <p class="text-sm text-zinc-500">Sin compras pendientes.</p>
+    {% endfor %}
+  </section>
+
+  <section class="card space-y-3 rounded-xl border border-zinc-800 p-5">
+    <h2 class="text-lg font-medium">Alertas de reabastecimiento</h2>
+    {% for row in screen.restock %}
+    <p class="text-sm text-zinc-300">
+      {{ row.ingredient_name }} · disponible {{ row.available_qty | cantidad }} · mínimo {{ row.min_stock | cantidad }}
+    </p>
+    {% else %}
+    <p class="text-sm text-zinc-500">Sin alertas.</p>
+    {% endfor %}
+  </section>
+
+  <section class="card space-y-3 rounded-xl border border-zinc-800 p-5">
+    <h2 class="text-lg font-medium">Ocupación</h2>
+    {% for row in screen.occupancy %}
+    <p class="text-sm text-zinc-300">
+      {{ row.event_date }} · {{ row.slot_label }} · {{ row.events }} de {{ row.capacity }}
+    </p>
+    {% else %}
+    <p class="text-sm text-zinc-500">Sin ocupación.</p>
+    {% endfor %}
+    <h3 class="pt-2 text-sm font-medium text-zinc-300">Equipo y mantelería</h3>
+    {% for row in screen.equipment %}
+    <p class="text-sm text-[#FFC72C]">
+      Cuello de botella · {{ row.event_date }} · {{ row.asset_name }} · {{ row.units }} de {{ row.total_stock }}
+    </p>
+    {% else %}
+    <p class="text-sm text-zinc-500">Sin cuellos de botella.</p>
+    {% endfor %}
+  </section>
+
+  <section class="card space-y-3 rounded-xl border border-zinc-800 p-5">
+    <h2 class="text-lg font-medium">Corte de caja</h2>
+    {% for row in screen.cash %}
+    <p class="text-sm text-zinc-300">
+      {{ row.method_label }} · punto de venta {{ row.pos_total | pesos }} · cobranza {{ row.receipt_total | pesos }}
+    </p>
+    {% endfor %}
+    <h3 class="pt-2 text-sm font-medium text-zinc-300">Saldos pendientes</h3>
+    {% for row in screen.pending %}
+    <p class="text-sm text-zinc-300">
+      {{ row.customer_name }} · {{ row.event_date }} · {{ row.balance | pesos }}
+    </p>
+    {% else %}
+    <p class="text-sm text-zinc-500">Sin saldos pendientes.</p>
+    {% endfor %}
+  </section>
+</div>

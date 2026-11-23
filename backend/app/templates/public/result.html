@@ -1,0 +1,20 @@
+{% extends "public/layout.html" %}
+{% block title %}Cotización recibida{% endblock %}
+{% block content %}
+<section class="card rounded-xl border border-zinc-800 p-6">
+  <h1 class="text-2xl font-semibold text-[#FFC72C]">Cotización recibida</h1>
+  <p class="mt-3">Folio {{ page.public_token }}</p>
+  <p class="mt-1 text-sm text-zinc-300">{{ page.package_name }} · {{ page.event_date }} · {{ page.slot_label }} · {{ page.guest_count }} invitados</p>
+  {% if page.show_prices %}
+  <p class="mt-4">Subtotal {{ page.subtotal | pesos }}</p>
+  <p>Descuento {{ page.discount_amount | pesos }}</p>
+  <p>IVA {{ page.tax_amount | pesos }}</p>
+  <p class="text-lg font-semibold">Total {{ page.total_amount | pesos }}</p>
+  {% else %}
+  <p class="mt-4">Cotización lista para revisión personalizada</p>
+  {% endif %}
+  {% if page.tracking_url %}
+  <a class="primary mt-6 inline-block rounded-lg px-4 py-2" href="{{ page.tracking_url }}">Seguir por WhatsApp</a>
+  {% endif %}
+</section>
+{% endblock %}

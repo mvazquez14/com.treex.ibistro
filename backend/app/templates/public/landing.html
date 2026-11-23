@@ -1,0 +1,159 @@
+{% extends "public/layout.html" %}
+{% block title %}{{ page.business_name }}{% endblock %}
+{% block content %}
+<article class="space-y-8">
+  <header class="card rounded-xl border border-zinc-800 p-6">
+    {% if page.logo_url %}
+    <img class="mb-4 h-16 w-16 rounded-lg object-cover" src="{{ page.logo_url }}" alt="{{ page.business_name }}">
+    {% endif %}
+    <h1 class="text-3xl font-semibold">{{ page.business_name }}</h1>
+    {% if page.address %}<p class="mt-2 text-sm text-zinc-400">{{ page.address }}</p>{% endif %}
+    {% if page.categories or page.tags %}
+    <ul class="mt-4 flex flex-wrap gap-2 text-sm">
+      {% for category in page.categories %}
+      <li class="rounded-full border border-zinc-700 px-3 py-1">{{ category.name }}</li>
+      {% endfor %}
+      {% for tag in page.tags %}
+      <li class="rounded-full border border-zinc-700 px-3 py-1">{{ tag }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if page.concierge_url %}
+    <a class="primary mt-5 inline-block rounded-lg px-4 py-2" href="{{ page.concierge_url }}">Cotizar por WhatsApp</a>
+    {% endif %}
+  </header>
+
+  {% if page.photos %}
+  <section>
+    <h2 class="text-lg font-medium">Galería</h2>
+    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+      {% for photo in page.photos %}
+      <figure class="card overflow-hidden rounded-xl border border-zinc-800">
+        <img src="{{ photo.image_url }}" alt="{{ photo.caption or page.business_name }}">
+        {% if photo.caption %}<figcaption class="px-3 py-2 text-sm text-zinc-300">{{ photo.caption }}</figcaption>{% endif %}
+      </figure>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if page.schedule %}
+  <section class="card rounded-xl border border-zinc-800 p-5">
+    <h2 class="text-lg font-medium">Horarios de atención</h2>
+    <ul class="mt-3 space-y-1 text-sm text-zinc-300">
+      {% for slot in page.schedule %}
+      <li>{{ slot.day_name }} {{ slot.label }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if not page.available %}
+  <p class="card rounded-xl border border-zinc-800 p-5" role="alert">Proveedor no disponible temporalmente</p>
+  {% elif not page.packages %}
+  <p class="text-sm text-zinc-400">Este proveedor aún no publica paquetes.</p>
+  {% else %}
+  <form id="quote-form" class="card space-y-6 rounded-xl border border-zinc-800 p-6" method="post" action="/c/{{ page.slug }}/quotes" x-data="{ step: 1, category: '' }">
+    <p class="text-sm text-zinc-400">Paso <span x-text="step"></span> de 4</p>
+
+    <section x-show="step === 1" class="space-y-3">
+      <h2 class="text-lg font-medium">1. Categoría de servicio</h2>
+      <div class="flex flex-wrap gap-2">
+        {% for category in page.categories %}
+        <button class="rounded-full border border-zinc-700 px-3 py-1 text-sm hover:border-[#FFC72C]" type="button" @click="category = '{{ category.id }}'; step = 2">{{ category.name }}</button>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section x-show="step === 2" class="space-y-4">
+      <h2 class="text-lg font-medium">2. Invitados, paquete y extras</h2>
+      <label class="text-sm text-zinc-300">Invitados
+        <input name="guest_count" type="number" min="{{ page.min_guests }}" max="{{ page.max_guests }}" value="{{ page.min_guests }}" required>
+      </label>
+      {% for package in page.packages %}
+      <article class="rounded-lg border border-zinc-800 p-4" x-show="category === '' || category === '{{ package.category_id }}'">
+        <label class="flex items-start gap-2">
+          <input class="mt-1 h-4 w-4" type="radio" name="package_id" value="{{ package.id }}" required>
+          <span>
+            <span class="font-medium">{{ package.name }}</span>
+            <span class="block text-sm text-zinc-400">{{ package.category_name }} · mínimo {{ package.min_guests }}</span>
+            {% if page.show_prices %}<span class="block text-sm text-[#FFC72C]">{{ package.base_price_per_guest | pesos }} por invitado</span>{% endif %}
+          </span>
+        </label>
+        {% if package.description %}<p class="mt-2 text-sm text-zinc-400">{{ package.description }}</p>{% endif %}
+        {% for group in package.groups %}
+          {% if group.is_fixed %}
+          <p class="mt-3 text-sm">Incluido: {{ group.group_name }}</p>
+          <ul class="text-sm text-zinc-300">
+            {% for option in group.options %}<li>{{ option.recipe_name }}</li>{% endfor %}
+          </ul>
+          {% else %}
+          <fieldset class="mt-3 space-y-1">
+            <legend class="text-sm">{{ group.group_name }} · elige de {{ group.min_choices }} a {{ group.max_choices }}</legend>
+            {% for option in group.options %}
+            <label class="flex items-center gap-2 text-sm">
+              <input class="h-4 w-4" type="checkbox" name="choice" value="{{ group.id }}:{{ option.recipe_id }}">
+              {{ option.recipe_name }}
+              {% if page.show_prices and option.extra_price_per_guest > 0 %}
+              <span class="text-[#FFC72C]">+ {{ option.extra_price_per_guest | pesos }}</span>
+              {% endif %}
+            </label>
+            {% endfor %}
+          </fieldset>
+          {% endif %}
+        {% endfor %}
+      </article>
+      {% endfor %}
+      {% if page.extras %}
+      <div class="space-y-2">
+        <h3 class="text-sm font-medium">Extras</h3>
+        {% for extra in page.extras %}
+        <label class="flex items-center gap-2 text-sm">
+          <input class="h-4 w-4" type="checkbox" name="extra" value="{{ extra.id }}">
+          {{ extra.name }}
+          {% if page.show_prices %}<span class="text-[#FFC72C]">{{ extra.unit_price | pesos }}</span>{% endif %}
+          <input class="max-w-24" name="extra_qty_{{ extra.id }}" type="number" min="0.01" step="0.01" value="1">
+        </label>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <button class="text-sm text-[#FFC72C]" type="button" @click="step = 3">Continuar</button>
+    </section>
+
+    <section x-show="step === 3" class="space-y-3">
+      <h2 class="text-lg font-medium">3. Datos del evento</h2>
+      <label class="text-sm text-zinc-300">Nombre<input name="full_name" required></label>
+      <label class="text-sm text-zinc-300">Teléfono<input name="phone" placeholder="+523312345678" required></label>
+      <label class="text-sm text-zinc-300">WhatsApp<input name="whatsapp_phone" placeholder="+523312345678" required></label>
+      <label class="text-sm text-zinc-300">Correo<input name="email" type="email"></label>
+      <label class="text-sm text-zinc-300">Dirección del evento<input name="venue_address" required></label>
+      <label class="text-sm text-zinc-300">Peticiones especiales<textarea name="special_requests" rows="3"></textarea></label>
+      {% if page.zones %}
+      <label class="text-sm text-zinc-300">Zona de entrega
+        <select name="delivery_zone_id">
+          <option value="">Sin zona</option>
+          {% for zone in page.zones %}
+          <option value="{{ zone.id }}">{{ zone.zone_name }}{% if page.show_prices %} · {{ zone.freight_cost | pesos }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endif %}
+      <button class="text-sm text-[#FFC72C]" type="button" @click="step = 4">Continuar</button>
+    </section>
+
+    <section x-show="step === 4" class="space-y-3">
+      <h2 class="text-lg font-medium">4. Fecha y desglose</h2>
+      <div class="flex flex-wrap gap-2">
+        {% for day in page.days %}
+        <button class="rounded-lg border border-zinc-700 px-3 py-1 text-sm hover:border-[#FFC72C]" type="button" hx-get="/api/v1/public/{{ page.slug }}/slots?date={{ day.iso }}" hx-target="#slots" hx-swap="innerHTML">{{ day.label }}</button>
+        {% endfor %}
+      </div>
+      <div id="slots"><p class="text-sm text-zinc-400">Elige una fecha para ver los horarios.</p></div>
+      <div id="preview"></div>
+      <button class="rounded-lg border border-zinc-700 px-3 py-2 text-sm" type="button" hx-post="/c/{{ page.slug }}/preview" hx-target="#preview" hx-swap="innerHTML">Ver desglose</button>
+      <button class="primary rounded-lg px-4 py-2" type="submit">Enviar cotización</button>
+    </section>
+  </form>
+  {% endif %}
+</article>
+{% endblock %}

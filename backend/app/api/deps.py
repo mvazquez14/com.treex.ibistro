@@ -1,57 +1,110 @@
-from collections.abc import Generator
-from typing import Annotated
+import hmac
+from typing import Annotated, Any
 
-import jwt
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from jwt.exceptions import InvalidTokenError
-from pydantic import ValidationError
-from sqlmodel import Session
+from fastapi import Depends, Header, HTTPException, Request, status
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core import security
 from app.core.config import settings
-from app.core.db import engine
-from app.models import TokenPayload, User
+from app.core.db import get_session
+from app.core.nuna_auth import organization_from_claims, read_session_claims
+from app.models import Tenant
+from app.services.impersonation import impersonation_target_id
 
-reusable_oauth2 = OAuth2PasswordBearer(
-    tokenUrl=f"{settings.API_V1_STR}/login/access-token"
-)
-
-
-def get_db() -> Generator[Session]:
-    with Session(engine) as session:
-        yield session
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
-SessionDep = Annotated[Session, Depends(get_db)]
-TokenDep = Annotated[str, Depends(reusable_oauth2)]
+def tenant_is_available(tenant: Tenant) -> bool:
+    return bool(tenant.has_active_plan)
 
 
-def get_current_user(session: SessionDep, token: TokenDep) -> User:
-    try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[security.ALGORITHM]
+async def get_current_tenant(request: Request, session: SessionDep) -> Tenant:
+    claims = read_session_claims(request)
+    if not claims:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
         )
-        token_data = TokenPayload(**payload)
-    except InvalidTokenError, ValidationError:
+    org = organization_from_claims(claims)
+    result = await session.exec(
+        select(Tenant).where(Tenant.nuna_org_id == org["nuna_org_id"])
+    )
+    tenant = result.first()
+    if org["is_superuser"]:
+        target_id = impersonation_target_id(request, str(org["nuna_org_id"]))
+        if target_id is not None:
+            target = await session.get(Tenant, target_id)
+            if target is not None:
+                return target
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+    return tenant
+
+
+CurrentTenant = Annotated[Tenant, Depends(get_current_tenant)]
+
+
+async def require_active_plan(tenant: CurrentTenant) -> Tenant:
+    if not tenant_is_available(tenant):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Could not validate credentials",
+            detail={
+                "message": "Suscripción inactiva — Ir a Nuna",
+                "billing_url": settings.NUNA_BILLING_URL,
+            },
         )
-    user = session.get(User, token_data.sub)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    if not user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
-    return user
+    return tenant
 
 
-CurrentUser = Annotated[User, Depends(get_current_user)]
+CurrentActiveTenant = Annotated[Tenant, Depends(require_active_plan)]
 
 
-def get_current_active_superuser(current_user: CurrentUser) -> User:
-    if not current_user.is_superuser:
+def require_orion_key(
+    x_api_key: Annotated[str | None, Header()] = None,
+) -> None:
+    """Authenticate Orion with the shared service token."""
+    expected = settings.ORION_SERVICE_TOKEN.strip()
+    if not expected:
         raise HTTPException(
-            status_code=403, detail="The user doesn't have enough privileges"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="La llave de Orion no está configurada",
         )
-    return current_user
+    provided = (x_api_key or "").strip()
+    if not provided or not _keys_match(provided, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="La llave de Orion no es válida",
+        )
+
+
+def _keys_match(provided: str, expected: str) -> bool:
+    left = provided.encode()
+    right = expected.encode()
+    if len(left) != len(right):
+        return False
+    return hmac.compare_digest(left, right)
+
+
+OrionKey = Annotated[None, Depends(require_orion_key)]
+
+
+async def require_superuser(request: Request) -> dict[str, Any]:
+    claims = read_session_claims(request)
+    if not claims:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+    org = organization_from_claims(claims)
+    if not org["is_superuser"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Se requiere un superusuario de Nuna",
+        )
+    return org
+
+
+CurrentSuperuser = Annotated[dict[str, Any], Depends(require_superuser)]

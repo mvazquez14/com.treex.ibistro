@@ -1,35 +1,28 @@
 services:
 
   proxy:
-    image: traefik:v3.7
+    image: traefik:3.6
     ports:
       - "80:80"
       - "8090:8080"
-    # Duplicate the command from compose.yml to add --api.insecure=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     command:
-      # Enable Docker in Traefik, so that it reads labels from Docker services
       - --providers.docker
-      # Do not expose all Docker services, only the ones explicitly exposed
+      - --providers.docker.constraints=Label(`traefik.constraint-label`, `traefik-public`)
       - --providers.docker.exposedbydefault=false
-      # Create an entrypoint "http" listening on port 80
       - --entrypoints.http.address=:80
-      # Enable the access log, with HTTP requests
       - --accesslog
-      # Enable the Traefik log, for configurations and errors
       - --log
-      # Enable debug logging for local development
       - --log.level=DEBUG
-      # Enable the Dashboard and API
       - --api
-      # Enable the Dashboard and API in insecure mode for local development
       - --api.insecure=true
-  db:
-    ports:
-      - "5432:5432"
-
-  adminer:
-    ports:
-      - "8080:8080"
+    labels:
+      - traefik.enable=true
+      - traefik.constraint-label=traefik-public
+      - traefik.http.middlewares.https-redirect.contenttype.autodetect=false
+    networks:
+      - traefik-public
 
   backend:
     ports:
@@ -37,7 +30,6 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    # command: sleep infinity  # Infinite loop to keep container alive doing nothing
     command:
       - fastapi
       - dev
@@ -59,7 +51,6 @@ services:
             - ./frontend/dist
             - ./frontend/blob-report
             - ./frontend/test-results
-    # TODO: remove once coverage is done locally
     volumes:
       - ./backend/htmlcov:/app/backend/htmlcov
     environment:
@@ -68,8 +59,14 @@ services:
       SMTP_PORT: "1025"
       SMTP_TLS: "false"
 
+  redis:
+    ports:
+      - "6379:6379"
+
   mailpit:
     image: axllent/mailpit
+    networks:
+      - traefik-public
     ports:
       - "8025:8025"
       - "1025:1025"
@@ -81,6 +78,8 @@ services:
       args:
         - NODE_ENV=production
     ipc: host
+    networks:
+      - traefik-public
     depends_on:
       - backend
       - mailpit
@@ -90,7 +89,6 @@ services:
       - PLAYWRIGHT_BASE_URL=http://backend:8000
       - VITE_API_URL=http://backend:8000
       - MAILPIT_HOST=http://mailpit:8025
-      # For the reports when run locally
       - PLAYWRIGHT_HTML_HOST=0.0.0.0
       - CI=${CI:-}
     volumes:
@@ -98,3 +96,7 @@ services:
       - ./frontend/test-results:/app/frontend/test-results
     ports:
       - 9323:9323
+
+networks:
+  traefik-public:
+    external: false

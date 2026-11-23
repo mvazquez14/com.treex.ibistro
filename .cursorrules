@@ -1,0 +1,21 @@
+# iBistro - Cursor Rules & Engineering Standards
+
+## Project Identity & Domain
+- Product: **iBistro** (`https://ibistro.mx`) — Multi-Tenant Catering & Restaurant Operations SaaS + WhatsApp Concierge Marketplace.
+- Ecosystem: Part of TreeX software suite, integrated with **Nuna** for Identity (OAuth2 RS256/JWKS) and SaaS Billing ($580 MXN regular / $399 MXN promo 3 months / 7-day free trial).
+- Stack: Python 3.12+, FastAPI, SQLModel (SQLAlchemy 2.0 Async), PostgreSQL 16, Redis 7, Celery, Jinja2 + HTMX + Alpine.js + Tailwind CSS.
+- UI Aesthetic: Minimalist dark-mode high-tech (`#09090B` background, `#18181B` cards, `#FFC72C` electric yellow primary accent, `#FEDD62` hover).
+- Language Rule: All source code, database models, variables, routes, and technical comments MUST be in **English**. All user-facing UI labels, PDFs, validation messages, and WhatsApp Concierge messages MUST be in **natural Mexican Spanish**.
+
+## Critical Architectural Laws
+1. **Strict Multi-Tenancy:** Every operational table MUST contain `tenant_id` (UUID, indexed). Never query or mutate operational data without enforcing `tenant_id == current_tenant.id`.
+2. **Nuna OAuth2 Confidential Client Flow (No PKCE):**
+   - Authentication uses standard OAuth2 `grant_type=authorization_code` with `client_id` + `client_secret` (no `code_challenge`/`code_verifier`).
+   - Callback route: `GET /api/auth/callback?code=...` exchanges code at `NUNA_TOKEN_URL` and verifies the returned `RS256` JWT using `NUNA_JWKS_URL` (`aud="ibistro"`).
+   - Organization profile fields (`business_name`, `rfc`, `address`, `logo_url`) and billing status (`has_active_plan`) are sourced from Nuna JWT/userinfo and Nuna webhooks (`POST /webhooks/nuna`).
+3. **Subscription Gate (`require_active_plan`):**
+   - If `tenant.has_active_plan == False` (trial expired or payment failed in Nuna): block dashboard write operations, disable public micro-landing (`/c/{slug}`), and exclude tenant from WhatsApp Concierge routing.
+4. **No Payment Intermediation:** Catering clients pay providers directly (Cash / SPEI transfer / provider's external terminal). iBistro never processes client funds; it displays provider transfer instructions, accepts receipt uploads, and tracks payment status.
+5. **E.164 Phone Standard:** Normalize and validate all phone numbers in strict E.164 format (`+5213312345678`) and generate `wa.me` links without `+` (`https://wa.me/5213312345678?text=...`).
+6. **API-First + HTMX:** Business logic lives strictly in `app/services/`. Routes in `/api/v1/` expose clean JSON endpoints (consumed by WhatsApp Concierge and future Alexa/POS integrations), while `/dashboard/` and `/c/` render Jinja2 + HTMX templates calling the exact same services.
+7. **Mock Mode for Fast Local Dev:** Support `MOCK_MODE=True` in `.env` to simulate Nuna OAuth/JWKS and Meta WhatsApp Cloud API locally without external network calls.
