@@ -85,6 +85,32 @@ async def create_slot(session: AsyncSession, tenant_id: UUID, data: SlotIn) -> S
     return slot_read(row)
 
 
+async def update_slot(
+    session: AsyncSession, tenant_id: UUID, slot_id: UUID, data: SlotIn
+) -> SlotRead:
+    row = await owned(
+        session,
+        ServiceScheduleSlot,
+        slot_id,
+        tenant_id,
+        "No se encontró el horario",
+    )
+    start = parse_clock(data.start_time)
+    end = parse_clock(data.end_time)
+    if end <= start:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="La hora de fin debe ser posterior a la de inicio",
+        )
+    row.day_of_week = parse_day(data.day_of_week)
+    row.start_time = start
+    row.end_time = end
+    row.is_active = data.is_active
+    session.add(row)
+    await session.flush()
+    return slot_read(row)
+
+
 async def delete_slot(session: AsyncSession, tenant_id: UUID, slot_id: UUID) -> None:
     row = await owned(
         session,

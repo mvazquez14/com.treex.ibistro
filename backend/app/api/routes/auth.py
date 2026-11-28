@@ -14,11 +14,12 @@ from app.core.nuna_auth import (
     verify_nuna_jwt,
 )
 from app.core.security import encrypt_session
+from app.services.impersonation import impersonated_name
 
 router = APIRouter(tags=["auth"])
 
 
-DEFAULT_RETURN_TO = "/dashboard/menu"
+DEFAULT_RETURN_TO = "/dashboard"
 
 
 def _safe_return_to(value: str | None) -> str:
@@ -104,6 +105,9 @@ async def nuna_session(request: Request, session: SessionDep) -> JSONResponse:
             "is_superuser": org["is_superuser"],
             "billing_url": settings.NUNA_BILLING_URL,
             "logout_url": f"{settings.NUNA_LOGOUT_URL}?{logout_query}",
+            "public_base_url": settings.IBISTRO_PUBLIC_BASE_URL.rstrip("/"),
+            "impersonating": impersonated_name(request),
+            "onboarding_completed": tenant.onboarding_completed if tenant else False,
         }
     )
 

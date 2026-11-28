@@ -271,6 +271,7 @@ def test_reservations_pos_and_provider_reports(
             "package_id": package_id,
             "event_date": day.isoformat(),
             "slot_id": slot.json()["id"],
+            "start_time": "10:00",
             "guest_count": 2,
             "full_name": "Ana López",
             "phone": "+5213311111111",
@@ -350,37 +351,36 @@ def test_reservations_pos_and_provider_reports(
     )
     assert agua_in.status_code == 201, agua_in.text
 
-    desk = client.get("/dashboard/reservations")
+    desk = client.get("/api/v1/reservations")
     assert desk.status_code == 200
-    assert "Saldo pendiente" in desk.text
-    assert "Ana López" in desk.text
-    partial = client.get("/dashboard/reservations", headers={"HX-Request": "true"})
-    assert 'id="panel"' in partial.text
+    assert desk.json()["reservations"][0]["customer_name"] == "Ana López"
+    assert _money(desk.json()["reservations"][0]["balance"]) == Decimal("200.00")
     bad_amount = client.post(
-        f"/dashboard/reservations/{reservation_id}/receipts",
-        data={"amount": "no", "payment_method": "TRANSFER"},
+        f"/api/v1/reservations/{reservation_id}/receipts",
+        json={"amount": "no", "payment_method": "TRANSFER"},
     )
     assert bad_amount.status_code == 422
-    assert "número" in bad_amount.text
     bad_method = client.post(
-        f"/dashboard/reservations/{reservation_id}/receipts",
-        data={"amount": "10", "payment_method": "CHEQUE"},
+        f"/api/v1/reservations/{reservation_id}/receipts",
+        json={"amount": "10", "payment_method": "CHEQUE"},
     )
     assert bad_method.status_code == 422
-    assert "método" in bad_method.text
     first = client.post(
-        f"/dashboard/reservations/{reservation_id}/receipts",
-        data={
-            "amount": "100",
+        f"/api/v1/reservations/{reservation_id}/receipts",
+        json={
+            "amount": "100.00",
             "payment_method": "TRANSFER",
             "receipt_file_url": "https://cdn.example/pago.jpg",
-            "is_verified": "on",
+            "is_verified": True,
         },
     )
     assert first.status_code == 200
-    assert "Anticipo" in first.text
-    assert "$100.00" in first.text
-    assert "https://cdn.example/pago.jpg" in first.text
+    assert first.json()["payment_label"] == "Anticipo"
+    assert _money(first.json()["paid_amount"]) == Decimal("100.00")
+    assert (
+        first.json()["receipts"][0]["receipt_file_url"]
+        == "https://cdn.example/pago.jpg"
+    )
 
     listed = client.get("/api/v1/reservations")
     assert listed.status_code == 200
@@ -425,10 +425,10 @@ def test_reservations_pos_and_provider_reports(
         if not row["is_verified"]
     )
     verified = client.post(
-        f"/dashboard/reservations/{reservation_id}/receipts/{open_receipt}/verify"
+        f"/api/v1/reservations/{reservation_id}/receipts/{open_receipt}/verify"
     )
     assert verified.status_code == 200
-    assert "Liquidada" in verified.text
+    assert verified.json()["payment_label"] == "Liquidada"
     again = client.post(
         f"/api/v1/reservations/{reservation_id}/receipts/{open_receipt}/verify"
     )
@@ -440,83 +440,83 @@ def test_reservations_pos_and_provider_reports(
     )
     assert over.status_code == 422
     assert "liquidada" in over.json()["detail"]
-    reopened = client.post(
-        f"/dashboard/reservations/{reservation_id}/receipts/{open_receipt}/delete"
+    reopened = client.delete(
+        f"/api/v1/reservations/{reservation_id}/receipts/{open_receipt}"
     )
     assert reopened.status_code == 200
-    assert "Anticipo" in reopened.text
+    assert reopened.json()["payment_label"] == "Anticipo"
     zero = client.post(
-        f"/dashboard/reservations/{reservation_id}/receipts",
-        data={"amount": "0", "payment_method": "CASH"},
+        f"/api/v1/reservations/{reservation_id}/receipts",
+        json={"amount": "0", "payment_method": "CASH", "is_verified": True},
     )
     assert zero.status_code == 422
-    assert "mayor a cero" in zero.text
+    assert "mayor a cero" in zero.json()["detail"]
     negative = client.post(
         f"/api/v1/reservations/{reservation_id}/receipts",
         json={"amount": "-1", "payment_method": "CASH", "is_verified": True},
     )
     assert negative.status_code == 422
-    missing = client.post(
-        f"/dashboard/reservations/{reservation_id}/receipts/"
-        "00000000-0000-0000-0000-000000000000/delete"
+    missing = client.delete(
+        f"/api/v1/reservations/{reservation_id}/receipts/"
+        "00000000-0000-0000-0000-000000000000"
     )
     assert missing.status_code == 404
-    assert "comprobante" in missing.text
+    assert "comprobante" in missing.json()["detail"]
 
     prepared = client.post(f"/api/v1/reservations/{reservation_id}/prepare")
     assert prepared.status_code == 200
     assert prepared.json()["operation_status"] == "IN_PREP"
-    blocked_prep = client.post(f"/dashboard/reservations/{reservation_id}/prepare")
+    blocked_prep = client.post(f"/api/v1/reservations/{reservation_id}/prepare")
     assert blocked_prep.status_code == 409
-    assert "preparar" in blocked_prep.text
+    assert "preparar" in blocked_prep.json()["detail"]
 
     counter = client.post(
-        "/dashboard/pos/sales",
-        data={
+        "/api/v1/pos/orders",
+        json={
             "warehouse_id": warehouse_id,
             "payment_method": "CASH",
-            f"kind_{agua_id}": "ingredient",
-            f"qty_{agua_id}": "1",
+            "lines": [{"kind": "ingredient", "item_id": agua_id, "quantity": 1}],
         },
     )
     assert counter.status_code == 200, counter.text
-    assert "$25.00" in counter.text
-    assert "Efectivo" in counter.text
+    assert _money(counter.json()["total_amount"]) == Decimal("25.00")
+    assert counter.json()["method_label"] == "Efectivo"
     empty = client.post(
-        "/dashboard/pos/sales",
-        data={"warehouse_id": warehouse_id, "payment_method": "CASH"},
+        "/api/v1/pos/orders",
+        json={"warehouse_id": warehouse_id, "payment_method": "CASH", "lines": []},
     )
     assert empty.status_code == 422
-    assert "producto" in empty.text
+    assert "producto" in empty.json()["detail"]
     bad_qty = client.post(
-        "/dashboard/pos/sales",
-        data={
+        "/api/v1/pos/orders",
+        json={
             "warehouse_id": warehouse_id,
             "payment_method": "CASH",
-            f"qty_{agua_id}": "abc",
-            f"kind_{agua_id}": "ingredient",
+            "lines": [{"kind": "ingredient", "item_id": agua_id, "quantity": "abc"}],
         },
     )
     assert bad_qty.status_code == 422
-    assert "número" in bad_qty.text
     bad_kind = client.post(
-        "/dashboard/pos/sales",
-        data={
+        "/api/v1/pos/orders",
+        json={
             "warehouse_id": warehouse_id,
             "payment_method": "CASH",
-            f"qty_{agua_id}": "1",
-            f"kind_{agua_id}": "nope",
+            "lines": [{"kind": "nope", "item_id": agua_id, "quantity": 1}],
         },
     )
     assert bad_kind.status_code == 422
-    assert "válido" in bad_kind.text
     bad_id = client.post(
-        "/dashboard/pos/sales",
-        data={
+        "/api/v1/pos/orders",
+        json={
             "warehouse_id": warehouse_id,
             "payment_method": "CASH",
-            "qty_not-a-uuid": "1",
-            "kind_not-a-uuid": "ingredient",
+            "lines": [
+                {
+                    "kind": "ingredient",
+                    "item_id": "not-a-uuid",
+                    "quantity": 1,
+                }
+            ],
         },
     )
     assert bad_id.status_code == 422
@@ -646,13 +646,13 @@ def test_reservations_pos_and_provider_reports(
     assert closed.json()["operation_status"] == "COMPLETED"
     assert _stock(client, "Pollo")["physical_stock"] == 8
     assert _stock(client, "Pollo")["committed_stock"] == 0
-    closed_again = client.post(f"/dashboard/reservations/{reservation_id}/close")
+    closed_again = client.post(f"/api/v1/reservations/{reservation_id}/close")
     assert closed_again.status_code == 409
-    assert "cerrada" in closed_again.text
+    assert "cerrada" in closed_again.json()["detail"]
     shipped = client.post(f"/api/v1/reservations/{reservation_id}/cancel")
     assert shipped.status_code == 409
     assert "surtió" in shipped.json()["detail"]
-    shipped_page = client.post(f"/dashboard/reservations/{reservation_id}/cancel")
+    shipped_page = client.post(f"/api/v1/reservations/{reservation_id}/cancel")
     assert shipped_page.status_code == 409
     unknown = client.post(
         "/api/v1/reservations/00000000-0000-0000-0000-000000000000/close"
@@ -665,6 +665,7 @@ def test_reservations_pos_and_provider_reports(
             "package_id": package_id,
             "event_date": later.isoformat(),
             "slot_id": later_slot.json()["id"],
+            "start_time": "10:00",
             "guest_count": 2,
             "full_name": "Luis Pérez",
             "phone": "+5213311111112",
@@ -715,9 +716,9 @@ def test_reservations_pos_and_provider_reports(
     assert cancelled.json()["operation_status"] == "CANCELLED"
     assert _stock(client, "Pollo")["physical_stock"] == 8
     assert _stock(client, "Pollo")["committed_stock"] == 0
-    cancelled_again = client.post(f"/dashboard/reservations/{second_id}/cancel")
+    cancelled_again = client.post(f"/api/v1/reservations/{second_id}/cancel")
     assert cancelled_again.status_code == 409
-    assert "cancelada" in cancelled_again.text
+    assert "cancelada" in cancelled_again.json()["detail"]
     linked = client.post(
         "/api/v1/pos/orders",
         json={
@@ -747,21 +748,7 @@ def test_reservations_pos_and_provider_reports(
     assert _money(cash["Tarjeta"]["pos_total"]) == Decimal("46.40")
     assert _money(cash["Transferencia"]["pos_total"]) == Decimal("30.00")
     assert _money(cash["Transferencia"]["receipt_total"]) == Decimal("250.00")
-    page = client.get("/dashboard/reports")
-    assert page.status_code == 200
-    assert 'lang="es"' in page.text
-    for title in (
-        "Rentabilidad real",
-        "Explosión de compras",
-        "Alertas de reabastecimiento",
-        "Ocupación",
-        "Corte de caja",
-    ):
-        assert title in page.text
-    assert "Cuello de botella" in page.text
-    assert "Ana López" in page.text
-    assert "Sin compras pendientes" in page.text
-    pos_page = client.get("/dashboard/pos")
-    assert "Punto de venta" in pos_page.text
-    assert "Tarjeta" in pos_page.text
-    assert "Transferencia" in pos_page.text
+    shell = client.get("/dashboard/reports")
+    assert shell.status_code == 200
+    assert 'lang="es"' in shell.text
+    assert "iBistro" in shell.text

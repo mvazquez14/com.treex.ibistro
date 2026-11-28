@@ -324,6 +324,7 @@ def test_menu_availability_and_both_quote_sources(
                 "package_id": package_id,
                 "event_date": event.isoformat(),
                 "slot_id": slot.json()["id"],
+                "start_time": "10:00",
                 "guest_count": 2,
                 "full_name": "Ana López",
                 "phone": "+5213311111111",
@@ -457,9 +458,8 @@ def test_admin_impersonation_and_catalog_clone(
     assert entered.headers["location"] == "/dashboard/menu"
     session = client.get("/api/auth/session")
     assert session.json()["slug"] == demo.slug
-    desk = client.get("/dashboard/menu")
-    assert "Viendo la cuenta de" in desk.text
-    assert "Catering Demo" in desk.text
+    desk = client.get("/api/auth/session")
+    assert desk.json()["impersonating"] == "Catering Demo"
     audits = list(memory_db.rows[PlatformAuditLog].values())
     assert any(
         row.action == "impersonate" and row.target_tenant_id == demo.id
@@ -495,7 +495,7 @@ def test_admin_impersonation_and_catalog_clone(
 
     stopped = client.post("/admin/impersonate/stop")
     assert stopped.status_code == 302
-    assert "Viendo la cuenta de" not in client.get("/dashboard/menu").text
+    assert client.get("/api/auth/session").json()["impersonating"] is None
     assert any(
         row.action == "stop_impersonation"
         for row in memory_db.rows[PlatformAuditLog].values()
@@ -540,7 +540,7 @@ def test_impersonation_cookie_is_ignored_when_it_is_not_the_actor(
         ),
     )
     assert client.get("/api/auth/session").json()["slug"] == demo.slug
-    assert "Viendo la cuenta de" not in client.get("/dashboard/menu").text
+    assert client.get("/api/auth/session").json()["impersonating"] is None
 
     _login(client, "admin")
     expired = encrypt_session(
@@ -569,8 +569,8 @@ def test_impersonation_cookie_is_ignored_when_it_is_not_the_actor(
     )
     client.cookies.set("ibistro_impersonation", naive)
     assert client.get("/api/auth/session").json()["slug"] == demo.slug
-    desk = client.get("/dashboard/menu")
-    assert "Viendo la cuenta de el proveedor" in desk.text
+    desk = client.get("/api/auth/session")
+    assert desk.json()["impersonating"] == "el proveedor"
 
     client.cookies.set("ibistro_impersonation", "no-es-una-cookie")
     assert client.get("/api/auth/session").json()["slug"] == admin.slug

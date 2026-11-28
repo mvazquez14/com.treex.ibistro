@@ -1,4 +1,4 @@
-"""Concurrent slots: confirmed events fill a block, cancelled events do not."""
+"""30-minute starts: a booking occupies service time plus the travel buffer."""
 
 from datetime import date, time, timedelta
 from decimal import Decimal
@@ -20,6 +20,7 @@ def _tenant(**overrides: object) -> Tenant:
         "has_active_plan": True,
         "max_concurrent_events_per_slot": 1,
         "travel_buffer_minutes": 60,
+        "service_duration_minutes": 120,
         "min_guests": 1,
         "max_guests": 300,
     }
@@ -87,8 +88,10 @@ async def test_cancelled_reservation_does_not_fill_the_slot(
     memory_db.add(_reservation(tenant, slot, day, status=OperationStatus.CANCELLED))
 
     opened = await open_slots(memory_db, tenant, day)  # type: ignore[arg-type]
-    assert [row.id for row, _remaining in opened] == [slot.id]
-    assert opened[0][1] == 1
+    assert [(row.id, start) for row, start, _remaining in opened] == [
+        (slot.id, time(10, 0))
+    ]
+    assert opened[0][2] == 1
 
 
 async def test_two_seats_leave_room_for_a_second_event(
@@ -102,7 +105,8 @@ async def test_two_seats_leave_room_for_a_second_event(
     memory_db.add(_reservation(tenant, slot, day))
 
     opened = await open_slots(memory_db, tenant, day)  # type: ignore[arg-type]
-    assert opened[0][1] == 1
+    assert opened[0][2] == 1
+    assert opened[0][1] == time(10, 0)
 
     memory_db.add(_reservation(tenant, slot, day))
     assert await open_slots(memory_db, tenant, day) == []  # type: ignore[arg-type]
@@ -123,13 +127,15 @@ async def test_travel_buffer_blocks_a_neighbor_and_keeps_a_later_block(
     memory_db.add(_reservation(tenant, morning, day))
 
     opened = await open_slots(memory_db, tenant, day)  # type: ignore[arg-type]
-    assert [row.id for row, _remaining in opened] == [afternoon.id]
+    assert [row.id for row, _start, _remaining in opened] == [afternoon.id]
 
     memory_db.rows[Reservation].clear()
     memory_db.add(_reservation(tenant, afternoon, day))
     opened = await open_slots(memory_db, tenant, day)  # type: ignore[arg-type]
-    assert morning.id in [row.id for row, _remaining in opened]
-    assert afternoon.id not in [row.id for row, _remaining in opened]
+    opened_ids = [row.id for row, _start, _remaining in opened]
+    assert morning.id in opened_ids
+    assert afternoon.id not in opened_ids
+    assert noon.id not in opened_ids
 
 
 async def test_past_inactive_and_wrong_weekday_are_rejected(
@@ -169,3 +175,25 @@ async def test_past_inactive_and_wrong_weekday_are_rejected(
     with pytest.raises(HTTPException) as missing:
         await assert_slot_open(memory_db, tenant, tomorrow, uuid4())  # type: ignore[arg-type]
     assert missing.value.status_code == 404
+
+
+async def test_long_window_offers_starts_every_thirty_minutes(
+    memory_db: MemorySession,
+) -> None:
+    day = date.today() + timedelta(days=1)
+    tenant = _tenant()
+    slot = _slot(tenant, day, time(10, 0), time(14, 0))
+    memory_db.add(tenant)
+    memory_db.add(slot)
+
+    opened = await open_slots(memory_db, tenant, day)  # type: ignore[arg-type]
+    assert [start for _slot, start, _remaining in opened] == [
+        time(10, 0),
+        time(10, 30),
+        time(11, 0),
+        time(11, 30),
+        time(12, 0),
+    ]
+    with pytest.raises(HTTPException) as late:
+        await assert_slot_open(memory_db, tenant, day, slot.id, time(12, 30))  # type: ignore[arg-type]
+    assert late.value.detail == "El servicio no cabe antes del cierre"

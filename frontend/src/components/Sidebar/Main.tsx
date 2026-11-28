@@ -1,5 +1,7 @@
 import { Link as RouterLink, useRouterState } from "@tanstack/react-router"
-import type { LucideIcon } from "lucide-react"
+import type { ComponentType, SVGProps } from "react"
+
+type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 
 import {
   SidebarGroup,
@@ -11,7 +13,7 @@ import {
 } from "@/components/ui/sidebar"
 
 export type Item = {
-  icon: LucideIcon
+  icon: IconComponent
   title: string
   path: string
 }

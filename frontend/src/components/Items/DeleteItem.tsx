@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Trash2 } from "lucide-react"
+import { TrashBin as Trash2 } from "@gravity-ui/icons"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 

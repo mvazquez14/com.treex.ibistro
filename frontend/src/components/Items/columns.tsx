@@ -1,5 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table"
-import { Check, Copy } from "lucide-react"
+import { Check, Copy } from "@gravity-ui/icons"
 
 import type { ItemPublic } from "@/client"
 import type { DataTableFeatures } from "@/components/Common/DataTable"

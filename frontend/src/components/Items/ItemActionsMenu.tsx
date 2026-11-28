@@ -1,4 +1,4 @@
-import { EllipsisVertical } from "lucide-react"
+import { EllipsisVertical } from "@gravity-ui/icons"
 import { useState } from "react"
 
 import type { ItemPublic } from "@/client"

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { Pencil } from "lucide-react"
+import { Pencil } from "@gravity-ui/icons"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"

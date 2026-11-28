@@ -60,10 +60,10 @@ def test_login_redirect_and_logout_do_not_touch_the_database(
 
 def test_return_to_rejects_external_urls() -> None:
     assert _safe_return_to("/dashboard") == "/dashboard"
-    assert _safe_return_to("https://evil.example") == "/dashboard/menu"
-    assert _safe_return_to("//evil.example") == "/dashboard/menu"
-    assert _safe_return_to("/\\\\trap") == "/dashboard/menu"
-    assert _safe_return_to(None) == "/dashboard/menu"
+    assert _safe_return_to("https://evil.example") == "/dashboard"
+    assert _safe_return_to("//evil.example") == "/dashboard"
+    assert _safe_return_to("/\\\\trap") == "/dashboard"
+    assert _safe_return_to(None) == "/dashboard"
 
 
 @pytest.mark.asyncio

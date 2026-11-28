@@ -72,6 +72,7 @@ async def _ensure_demo_tenant(session: AsyncSession) -> None:
             rfc="XAXX010101000",
             address="Guadalajara, Jalisco",
             has_active_plan=True,
+            onboarding_completed=True,
         )
     )
 
@@ -89,6 +90,7 @@ async def _ensure_master_catalog(session: AsyncSession) -> None:
             business_name=MASTER_BUSINESS_NAME,
             has_active_plan=False,
             is_verified_concierge=False,
+            onboarding_completed=True,
         )
         session.add(tenant)
         await session.flush()

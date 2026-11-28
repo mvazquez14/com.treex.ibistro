@@ -1,4 +1,4 @@
-import { Monitor, Moon, Sun } from "lucide-react"
+import { Display as Monitor, Moon, Sun } from "@gravity-ui/icons"
 
 import { type Theme, useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
@@ -14,9 +14,9 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
-type LucideIcon = React.FC<React.SVGProps<SVGSVGElement>>
+type IconComponent = React.FC<React.SVGProps<SVGSVGElement>>
 
-const ICON_MAP: Record<Theme, LucideIcon> = {
+const ICON_MAP: Record<Theme, IconComponent> = {
   system: Monitor,
   light: Sun,
   dark: Moon,

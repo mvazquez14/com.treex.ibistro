@@ -1,9 +1,5 @@
 import * as React from "react"
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  MoreHorizontalIcon,
-} from "lucide-react"
+import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Ellipsis as MoreHorizontalIcon } from "@gravity-ui/icons"
 
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"

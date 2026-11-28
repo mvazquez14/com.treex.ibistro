@@ -13,6 +13,8 @@
     "test:ui": "bunx playwright test --ui"
   },
   "dependencies": {
+    "@gravity-ui/icons": "^2.24.0",
+    "@heroui/react": "^3.2.8",
     "@hookform/resolvers": "^6.0.1",
     "@radix-ui/react-avatar": "^1.3.1",
     "@radix-ui/react-checkbox": "^1.4.1",
@@ -36,7 +38,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "form-data": "4.0.6",
-    "lucide-react": "^1.62.0",
+    "framer-motion": "^14.14.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-error-boundary": "^6.1.6",

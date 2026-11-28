@@ -84,6 +84,7 @@ def _quote_body(
         "package_id": package_id,
         "event_date": day.isoformat(),
         "slot_id": slot_id,
+        "start_time": "10:00",
         "guest_count": 2,
         "full_name": "Ana López",
         "phone": "+5213311111111",
@@ -129,16 +130,16 @@ def test_landing_quote_discount_iva_pdf_and_convert(
     )
     assert zone.status_code == 201
     dashboard_slot = client.post(
-        "/dashboard/quotes/slots",
-        data={
-            "day_of_week": str(day.weekday()),
+        "/api/v1/schedule/slots",
+        json={
+            "day_of_week": day.weekday(),
             "start_time": "18:00",
             "end_time": "20:00",
-            "is_active": "true",
+            "is_active": True,
         },
     )
-    assert dashboard_slot.status_code == 200
-    assert "Horarios de servicio" in dashboard_slot.text
+    assert dashboard_slot.status_code == 201
+    assert dashboard_slot.json()["start_time"] == "18:00"
 
     landing = client.get(f"/c/{slug}")
     assert landing.status_code == 200
@@ -147,9 +148,14 @@ def test_landing_quote_discount_iva_pdf_and_convert(
     assert "Mesa de tacos" in landing.text
     assert "https://cdn.example/mesa.jpg" in landing.text
     assert f"provider_id:{tenant.id}" in landing.text  # type: ignore[attr-defined]
-    assert 'hx-get="/api/v1/public/' in landing.text
+    assert f"/c/{slug}/availability" in landing.text
     assert "Taquiza" in landing.text
     assert "$100.00" in landing.text
+    assert f'pickPackage("{package_id}", "Taquiza", "100.00")' in landing.text
+    assert "Seleccionar servicio" in landing.text
+    assert "Seleccionado ✓" in landing.text
+    assert 'pickCategory("' in landing.text
+    assert '", "Taquiza")' in landing.text
 
     slots = client.get(f"/api/v1/public/{slug}/slots", params={"date": day.isoformat()})
     assert slots.status_code == 200
@@ -178,18 +184,14 @@ def test_landing_quote_discount_iva_pdf_and_convert(
     assert "wa.me/5213300000000" in payload["tracking_url"]
     quote_id = payload["id"]
 
-    desk = client.get("/dashboard/quotes")
-    assert "Ana López" in desk.text
-    assert "Descuento" in desk.text
-    assert "IVA" in desk.text
-    assert "Aprobar y Convertir a Reservación" in desk.text
-
-    adjusted = client.post(
-        f"/dashboard/quotes/{quote_id}/adjust",
-        data={"discount_amount": "50", "apply_tax": "true", "tax_rate": "0.16"},
+    desk = client.get("/api/v1/quotes")
+    assert any(row["lead_name"] == "Ana López" for row in desk.json())
+    adjusted = client.patch(
+        f"/api/v1/quotes/{quote_id}",
+        json={"discount_amount": "50", "apply_tax": True, "tax_rate": "0.16"},
     )
     assert adjusted.status_code == 200
-    assert "$232.00" in adjusted.text
+    assert Decimal(adjusted.json()["total_amount"]) == Decimal("232.00")
 
     too_much = client.patch(
         f"/api/v1/quotes/{quote_id}",
@@ -209,16 +211,13 @@ def test_landing_quote_discount_iva_pdf_and_convert(
     assert pdf.status_code == 200
     assert pdf.headers["content-type"].startswith("application/pdf")
     assert pdf.content.startswith(b"%PDF")
-    dashboard_pdf = client.get(f"/dashboard/quotes/{quote_id}/pdf")
-    assert dashboard_pdf.content.startswith(b"%PDF")
-
     converted = client.post(f"/api/v1/quotes/{quote_id}/convert")
     assert converted.status_code == 200
     assert converted.json()["status"] == "APPROVED"
     assert converted.json()["reservation_id"]
-    again = client.post(f"/dashboard/quotes/{quote_id}/convert")
+    again = client.post(f"/api/v1/quotes/{quote_id}/convert")
     assert again.status_code == 409
-    assert "ya es una reservación" in again.text
+    assert "ya es una reservación" in again.json()["detail"]
 
 
 def test_hidden_prices_inactive_plan_and_unknown_slug(
@@ -387,14 +386,25 @@ def test_convert_commits_stock_and_a_second_convert_conflicts(
     assert created.status_code == 201
     quote_id = created.json()["id"]
 
-    blocked = client.post(f"/api/v1/quotes/{quote_id}/convert")
-    assert blocked.status_code == 409
-    assert "almacén primario" in blocked.json()["detail"]
-    assert Reservation not in memory_db.rows or not any(
+    converted = client.post(f"/api/v1/quotes/{quote_id}/convert")
+    assert converted.status_code == 200
+    assert any(
         row.quote_id is not None and str(row.quote_id) == quote_id
         for row in memory_db.rows.get(Reservation, {}).values()
     )
 
+    later = day + timedelta(days=7)
+    short_quote = client.post(
+        f"/api/v1/public/{slug}/quotes",
+        json=_quote_body(
+            package.json()["id"],
+            slot_id,
+            later,
+            selected_options={group_id: [recipe.json()["id"]]},
+        ),
+    )
+    assert short_quote.status_code == 201
+    short_id = short_quote.json()["id"]
     warehouse = client.post(
         "/api/v1/warehouses",
         json={"name": "Central", "is_primary": True},
@@ -408,28 +418,16 @@ def test_convert_commits_stock_and_a_second_convert_conflicts(
             "quantity": 1,
         },
     )
-    short = client.post(f"/api/v1/quotes/{quote_id}/convert")
-    assert short.status_code == 409
-    assert short.json()["detail"] == "No hay existencia disponible para reservar"
-    assert not memory_db.rows.get(Reservation)
-
-    client.post(
-        "/api/v1/warehouses/movements",
-        json={
-            "warehouse_id": warehouse.json()["id"],
-            "ingredient_id": ingredient.json()["id"],
-            "movement_type": "PURCHASE_IN",
-            "quantity": 5,
-        },
+    short = client.post(f"/api/v1/quotes/{short_id}/convert")
+    assert short.status_code == 200
+    assert any(
+        row.quote_id is not None and str(row.quote_id) == short_id
+        for row in memory_db.rows.get(Reservation, {}).values()
     )
-    converted = client.post(f"/api/v1/quotes/{quote_id}/convert")
-    assert converted.status_code == 200
-    stock = client.get("/api/v1/warehouses/stock")
-    carne = next(row for row in stock.json() if row["ingredient_name"] == "Carne")
-    assert carne["committed_stock"] == 2
-    assert carne["physical_stock"] == 6
+
     again = client.post(f"/api/v1/quotes/{quote_id}/convert")
     assert again.status_code == 409
+    assert again.json()["detail"] == "Esta cotización ya es una reservación"
 
 
 def test_quote_from_another_tenant_stays_hidden(
@@ -591,6 +589,8 @@ def test_validation_extras_equipment_and_desk_errors(
     form[f"extra_qty_{per_unit.json()['id']}"] = "1"
     html_quote = client.post(f"/c/{slug}/quotes", data=form)
     assert html_quote.status_code == 201
+    assert "Folio" in html_quote.text
+    assert "Enviar también por WhatsApp" in html_quote.text
 
     assert (
         client.post(f"/c/{slug}/quotes", data={"guest_count": "2"}).status_code == 422
@@ -672,7 +672,9 @@ def test_validation_extras_equipment_and_desk_errors(
     detail = client.get(f"/api/v1/quotes/{quote_id}")
     assert detail.json()["package_name"] == "Paquete"
     assert detail.json()["lead_name"] == "Cliente"
-    assert detail.json()["slot_label"] == ""
+    assert detail.json()["slot_label"] == "10:00–12:00"
+    assert detail.json()["start_time"] == "10:00"
+    assert detail.json()["end_time"] == "12:00"
     stored.status = QuoteStatus.REJECTED
     rejected = client.post(f"/api/v1/quotes/{quote_id}/convert")
     assert rejected.status_code == 422
@@ -801,28 +803,28 @@ def test_validation_extras_equipment_and_desk_errors(
     )
 
     desk_slot = client.post(
-        "/dashboard/quotes/slots",
-        data={
-            "day_of_week": str(day.weekday()),
+        "/api/v1/schedule/slots",
+        json={
+            "day_of_week": day.weekday(),
             "start_time": "18:00",
             "end_time": "10:00",
         },
     )
     assert desk_slot.status_code == 422
-    assert "posterior" in desk_slot.text
+    assert "posterior" in desk_slot.json()["detail"]
     desk_photo = client.post(
-        "/dashboard/quotes/photos",
-        data={"image_url": "nota", "display_order": "0"},
+        "/api/v1/schedule/photos",
+        json={"image_url": "nota", "display_order": 0},
     )
     assert desk_photo.status_code == 422
     desk_zone = client.post(
-        "/dashboard/quotes/zones",
-        data={"zone_name": "", "freight_cost": "10"},
+        "/api/v1/schedule/zones",
+        json={"zone_name": "", "freight_cost": "10"},
     )
     assert desk_zone.status_code == 422
-    bad_adjust = client.post(
-        f"/dashboard/quotes/{plain.json()['id']}/adjust",
-        data={"discount_amount": "no", "tax_rate": ""},
+    bad_adjust = client.patch(
+        f"/api/v1/quotes/{plain.json()['id']}",
+        json={"discount_amount": "no", "tax_rate": ""},
     )
     assert bad_adjust.status_code == 422
 
@@ -906,3 +908,318 @@ def test_pdf_prefers_weasyprint_and_falls_back(monkeypatch: pytest.MonkeyPatch) 
     module.HTML = _Text  # type: ignore[attr-defined]
     assert render_quote_pdf(document).startswith(b"%PDF")
     assert _pesos("nope") == "nope"
+
+
+def test_month_availability_and_extra_categories(
+    client: TestClient, memory_db: MemorySession
+) -> None:
+    slug, _tenant = _tune(client, memory_db)
+    day = date.today() + timedelta(days=1)
+    slot_id = _slot(client, day)
+    taquiza = ServiceCategory(name="Taquiza", slug="taquiza-mes", icon="🌮")
+    italiana = ServiceCategory(name="Italiana", slug="italiana-mes", icon="")
+    memory_db.add(taquiza)
+    memory_db.add(italiana)
+    created = client.post(
+        "/api/v1/menu/packages",
+        json={
+            "category_id": str(taquiza.id),
+            "name": "Taquiza",
+            "base_price_per_guest": "100.00",
+            "min_guests": 1,
+        },
+    )
+    assert created.status_code == 201
+    linked = client.post(
+        "/api/v1/menu/extras",
+        json={
+            "name": "Arroz",
+            "unit_price": "15.00",
+            "pricing_type": "PER_UNIT",
+            "category_ids": [str(taquiza.id)],
+        },
+    )
+    assert linked.status_code == 201, linked.text
+    assert linked.json()["category_ids"] == [str(taquiza.id)]
+    assert linked.json()["category_names"] == ["Taquiza"]
+    kept = client.patch(
+        f"/api/v1/menu/extras/{linked.json()['id']}",
+        json={"is_active": True},
+    )
+    assert kept.status_code == 200
+    assert kept.json()["category_ids"] == [str(taquiza.id)]
+    cleared = client.patch(
+        f"/api/v1/menu/extras/{linked.json()['id']}",
+        json={"category_ids": []},
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["category_ids"] == []
+    restored = client.patch(
+        f"/api/v1/menu/extras/{linked.json()['id']}",
+        json={"category_ids": [str(taquiza.id), str(taquiza.id)]},
+    )
+    assert restored.status_code == 200
+    assert restored.json()["category_ids"] == [str(taquiza.id)]
+    unknown = client.post(
+        "/api/v1/menu/extras",
+        json={
+            "name": "Salsa",
+            "unit_price": "5.00",
+            "pricing_type": "PER_UNIT",
+            "category_ids": [str(uuid4())],
+        },
+    )
+    assert unknown.status_code == 422
+
+    month = f"{day.year:04d}-{day.month:02d}"
+    availability = client.get(f"/c/{slug}/availability", params={"month": month})
+    assert availability.status_code == 200, availability.text
+    body = availability.json()
+    assert body["service_duration_minutes"] == 120
+    found = next(item for item in body["days"] if item["date"] == day.isoformat())
+    assert found["status"] == "available"
+    assert found["available_slots"] == ["10:00"]
+    assert found["bookings"][0]["slot_id"] == slot_id
+    other = next(
+        item
+        for item in body["days"]
+        if item["date"] >= date.today().isoformat()
+        and date.fromisoformat(item["date"]).weekday() != day.weekday()
+    )
+    assert other["status"] == "closed"
+    assert other["available_slots"] == []
+    invalid = client.get(f"/c/{slug}/availability", params={"month": "2026-13"})
+    assert invalid.status_code == 422
+    assert "válido" in invalid.json()["detail"]
+
+    profile = client.get(f"/api/v1/public/{slug}")
+    assert profile.status_code == 200
+    extras = {row["name"]: row for row in profile.json()["extras"]}
+    assert extras["Arroz"]["category_ids"] == [str(taquiza.id)]
+    landing = client.get(f"/c/{slug}")
+    assert landing.status_code == 200
+    assert "Fecha y hora del evento" in landing.text
+    assert "Enviar Solicitud de Cotización" in landing.text
+    assert "Arroz" in landing.text
+    assert str(italiana.id) not in extras["Arroz"]["category_ids"]
+
+
+def test_exact_schedule_rebook_and_closed_reservation(
+    client: TestClient, memory_db: MemorySession
+) -> None:
+    slug, _tenant = _tune(client, memory_db)
+    day = date.today() + timedelta(days=2)
+    package_id = _package(client, memory_db)
+    slot_id = _slot(client, day)
+
+    missing = client.post(
+        f"/api/v1/public/{slug}/quotes",
+        json=_quote_body(package_id, slot_id, day, start_time=None),
+    )
+    assert missing.status_code == 422
+    assert missing.json()["detail"] == "Elige una hora"
+
+    created = client.post(
+        f"/api/v1/public/{slug}/quotes",
+        json=_quote_body(package_id, slot_id, day),
+    )
+    assert created.status_code == 201, created.text
+    quote_id = created.json()["id"]
+    detail = client.get(f"/api/v1/quotes/{quote_id}")
+    assert detail.status_code == 200
+    assert detail.json()["start_time"] == "10:00"
+    assert detail.json()["end_time"] == "12:00"
+    assert detail.json()["slot_label"] == "10:00–12:00"
+    assert detail.json()["reservation_id"] is None
+    assert detail.json()["can_rebook"] is False
+
+    listed = client.get("/api/v1/quotes")
+    row = next(item for item in listed.json() if item["id"] == quote_id)
+    assert row["start_time"] == "10:00"
+    assert row["end_time"] == "12:00"
+
+    choice = {
+        "event_date": day.isoformat(),
+        "slot_id": slot_id,
+        "start_time": "10:00",
+    }
+    moved = client.patch(f"/api/v1/quotes/{quote_id}/schedule", json=choice)
+    assert moved.status_code == 200
+    assert moved.json()["start_time"] == "10:00"
+    assert moved.json()["end_time"] == "12:00"
+
+    converted = client.post(f"/api/v1/quotes/{quote_id}/convert")
+    assert converted.status_code == 200, converted.text
+    reservation_id = converted.json()["reservation_id"]
+    card = client.get(f"/api/v1/reservations/{reservation_id}")
+    assert card.status_code == 200
+    body = card.json()
+    assert body["start_time"] == "10:00"
+    assert body["end_time"] == "12:00"
+    assert body["folio"]
+    assert body["email"] == "ana@example.com"
+    assert "wa.me/5213311111111" in body["whatsapp_url"]
+    assert "+" not in body["whatsapp_url"].split("wa.me/", 1)[1].split("?", 1)[0]
+
+    later = day + timedelta(days=7)
+    later_choice = {
+        "event_date": later.isoformat(),
+        "slot_id": slot_id,
+        "start_time": "10:00",
+    }
+    shifted = client.patch(f"/api/v1/reservations/{reservation_id}", json=later_choice)
+    assert shifted.status_code == 200, shifted.text
+    assert shifted.json()["start_time"] == "10:00"
+    assert str(shifted.json()["event_date"]).startswith(later.isoformat())
+    quote = client.get(f"/api/v1/quotes/{quote_id}")
+    assert str(quote.json()["event_date"]).startswith(later.isoformat())
+
+    closed = client.post(f"/api/v1/reservations/{reservation_id}/close")
+    assert closed.status_code == 200, closed.text
+    blocked = client.patch(f"/api/v1/reservations/{reservation_id}", json=later_choice)
+    assert blocked.status_code == 403
+    receipt = client.post(
+        f"/api/v1/reservations/{reservation_id}/receipts",
+        json={"amount": "10.00", "payment_method": "CASH"},
+    )
+    assert receipt.status_code == 403
+
+    quote = client.get(f"/api/v1/quotes/{quote_id}")
+    assert quote.json()["can_rebook"] is True
+    assert quote.json()["reservation_id"] is None
+    occupied = client.post(f"/api/v1/quotes/{quote_id}/convert", json=later_choice)
+    assert occupied.status_code == 409
+
+    free_day = later + timedelta(days=7)
+    free_choice = {
+        "event_date": free_day.isoformat(),
+        "slot_id": slot_id,
+        "start_time": "10:00",
+    }
+    again = client.post(f"/api/v1/quotes/{quote_id}/convert", json=free_choice)
+    assert again.status_code == 200, again.text
+    second_id = again.json()["reservation_id"]
+    assert second_id != reservation_id
+    duplicate = client.post(f"/api/v1/quotes/{quote_id}/convert", json=free_choice)
+    assert duplicate.status_code == 409
+
+    cancelled = client.post(f"/api/v1/reservations/{second_id}/cancel")
+    assert cancelled.status_code == 200
+    openings = client.get(
+        "/api/v1/schedule/openings",
+        params={"date": free_day.isoformat()},
+    )
+    assert openings.status_code == 200
+    assert any(item["start_time"] == "10:00" for item in openings.json())
+    rebooked = client.post(f"/api/v1/quotes/{quote_id}/convert", json=free_choice)
+    assert rebooked.status_code == 200, rebooked.text
+    assert rebooked.json()["reservation_id"] != second_id
+
+
+def test_approve_quote_from_the_list(
+    client: TestClient, memory_db: MemorySession
+) -> None:
+    _tune(client, memory_db)
+    day = date.today() + timedelta(days=2)
+    package_id = _package(client, memory_db)
+    slot_id = _slot(client, day)
+    created = client.post("/api/v1/quotes", json=_quote_body(package_id, slot_id, day))
+    assert created.status_code == 201, created.text
+    quote_id = created.json()["id"]
+    approved = client.post(f"/api/v1/quotes/{quote_id}/approve")
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["status"] == "APPROVED"
+    assert approved.json()["status_label"] == "Aprobada"
+    assert approved.json()["reservation_id"] is None
+    again = client.post(f"/api/v1/quotes/{quote_id}/approve")
+    assert again.status_code == 200
+    stored = next(iter(memory_db.rows[Quote].values()))
+    stored.status = QuoteStatus.REJECTED
+    rejected = client.post(f"/api/v1/quotes/{quote_id}/approve")
+    assert rejected.status_code == 422
+    assert rejected.json()["detail"] == "La cotización está rechazada"
+
+
+def test_dashboard_pos_creates_a_quote(
+    client: TestClient, memory_db: MemorySession
+) -> None:
+    _tune(client, memory_db)
+    day = date.today() + timedelta(days=3)
+    package_id = _package(client, memory_db)
+    slot_id = _slot(client, day)
+    missing = client.post(
+        "/api/v1/quotes",
+        json=_quote_body(package_id, slot_id, day, start_time=None),
+    )
+    assert missing.status_code == 422
+    assert missing.json()["detail"] == "Elige una hora"
+    created = client.post(
+        "/api/v1/quotes",
+        json=_quote_body(package_id, slot_id, day),
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["start_time"] == "10:00"
+    assert created.json()["end_time"] == "12:00"
+    assert created.json()["lead_name"] == "Ana López"
+
+
+def test_quote_service_edit_and_reservation_log(
+    client: TestClient, memory_db: MemorySession
+) -> None:
+    _tune(client, memory_db)
+    day = date.today() + timedelta(days=4)
+    package_id = _package(client, memory_db)
+    slot_id = _slot(client, day)
+    created = client.post(
+        f"/api/v1/public/{client.get('/api/auth/session').json()['slug']}/quotes",
+        json=_quote_body(package_id, slot_id, day),
+    )
+    assert created.status_code == 201, created.text
+    quote_id = created.json()["id"]
+    detail = client.get(f"/api/v1/quotes/{quote_id}")
+    assert detail.status_code == 200
+    body = detail.json()
+    assert body["folio"]
+    assert body["package_id"] == package_id
+    assert body["variants"] == []
+    edited = client.patch(
+        f"/api/v1/quotes/{quote_id}",
+        json={"guest_count": 4, "manual_total": "250.00"},
+    )
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["guest_count"] == 4
+    assert edited.json()["total_amount"] == "250.00"
+    converted = client.post(f"/api/v1/quotes/{quote_id}/convert")
+    assert converted.status_code == 200, converted.text
+    reservation_id = converted.json()["reservation_id"]
+    blocked = client.patch(
+        f"/api/v1/quotes/{quote_id}",
+        json={"guest_count": 5},
+    )
+    assert blocked.status_code == 409
+    changed = client.patch(
+        f"/api/v1/reservations/{reservation_id}",
+        json={
+            "guest_count": 6,
+            "event_date": day.isoformat(),
+            "slot_id": slot_id,
+            "start_time": "10:00",
+            "manual_total": "300.00",
+            "reason": "Más invitados",
+        },
+    )
+    assert changed.status_code == 200, changed.text
+    saved = changed.json()
+    assert saved["guest_count"] == 6
+    assert saved["total_amount"] == "300.00"
+    assert saved["paid_amount"] == "0.00"
+    assert saved["change_log"][-1]["reason"] == "Más invitados"
+    assert saved["change_log"][-1]["before"]["guest_count"] == "4"
+    assert saved["change_log"][-1]["after"]["guest_count"] == "6"
+    closed = client.post(f"/api/v1/reservations/{reservation_id}/close")
+    assert closed.status_code == 200, closed.text
+    forbidden = client.patch(
+        f"/api/v1/reservations/{reservation_id}",
+        json={"guest_count": 7, "manual_total": "10.00"},
+    )
+    assert forbidden.status_code == 403

@@ -2,7 +2,7 @@ import uuid
 from datetime import time
 from decimal import Decimal
 
-from sqlalchemy import Column, Float, Integer
+from sqlalchemy import Column, Float, Index, Integer, text
 from sqlmodel import Field, SQLModel
 
 from app.models.columns import fk, jsonb_column, money_column, text_column, uuid_pk
@@ -14,6 +14,20 @@ def _default_modules() -> list[str]:
 
 class Tenant(SQLModel, table=True):
     __tablename__ = "tenant"
+    __table_args__ = (
+        Index(
+            "uq_tenant_rfc_present",
+            "rfc",
+            unique=True,
+            postgresql_where=text("rfc <> ''"),
+        ),
+        Index(
+            "uq_tenant_whatsapp_present",
+            "whatsapp_phone",
+            unique=True,
+            postgresql_where=text("whatsapp_phone <> ''"),
+        ),
+    )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=uuid_pk())
     nuna_org_id: str = Field(max_length=128, unique=True, index=True)
@@ -61,7 +75,12 @@ class Tenant(SQLModel, table=True):
         default=60,
         sa_column=Column(Integer, nullable=False, server_default="60"),
     )
+    service_duration_minutes: int = Field(
+        default=120,
+        sa_column=Column(Integer, nullable=False, server_default="120"),
+    )
     has_active_plan: bool = Field(default=False)
+    onboarding_completed: bool = Field(default=False)
     is_verified_concierge: bool = Field(default=False)
     concierge_priority_score: int = Field(
         default=100,

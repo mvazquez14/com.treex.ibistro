@@ -76,9 +76,7 @@ class Settings(BaseSettings):
     NUNA_BILLING_URL: str = "https://treex.com.mx/billing"
     NUNA_CLIENT_ID: str = "ibistro"
     NUNA_CLIENT_SECRET: str = ""
-    NUNA_REDIRECT_URI: str = (
-        "https://dashboard.ibistro.treex.com.mx/api/auth/callback"
-    )
+    NUNA_REDIRECT_URI: str = "https://dashboard.ibistro.treex.com.mx/api/auth/callback"
     NUNA_POST_LOGOUT_REDIRECT_URI: str = "https://ibistro.treex.com.mx"
     NUNA_WEBHOOK_SECRET: str = ""
     NUNA_AUDIENCE: str = "ibistro"
@@ -86,6 +84,8 @@ class Settings(BaseSettings):
     SESSION_SECRET: str = ""
     IBISTRO_CONCIERGE_PHONE: str = ""
     IBISTRO_PUBLIC_BASE_URL: str = "https://ibistro.treex.com.mx"
+    UPLOADS_DIR: str = "/app/uploads"
+    VITE_DEV_SERVER: str = ""
     ORION_SERVICE_TOKEN: str = ""
     IMPERSONATION_COOKIE_NAME: str = "ibistro_impersonation"
 

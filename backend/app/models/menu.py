@@ -1,7 +1,7 @@
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Column, Float, Integer
+from sqlalchemy import Boolean, Column, Float, Integer, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 from app.models.columns import enum_column, fk, money_column, text_column, uuid_pk
@@ -106,3 +106,17 @@ class MenuExtra(SQLModel, table=True):
         sa_column=enum_column(PricingType, "pricing_type")
     )
     is_active: bool = Field(default=True)
+
+
+class ExtraCategory(SQLModel, table=True):
+    __tablename__ = "extra_category"
+    __table_args__ = (
+        UniqueConstraint("extra_id", "category_id", name="uq_extra_category"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, sa_column=uuid_pk())
+    tenant_id: uuid.UUID = Field(sa_column=fk("tenant.id"))
+    extra_id: uuid.UUID = Field(sa_column=fk("menu_extra.id"))
+    category_id: uuid.UUID = Field(
+        sa_column=fk("service_category.id", ondelete="CASCADE")
+    )

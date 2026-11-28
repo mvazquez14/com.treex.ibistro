@@ -10,6 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.inventory import Ingredient
 from app.models.menu import (
     CateringPackage,
+    ExtraCategory,
     MenuExtra,
     PackageGroupOption,
     PackageRecipeGroup,
@@ -37,6 +38,7 @@ from app.schemas.catalog import (
     RecipeIn,
     RecipeItemIn,
     RecipeItemRead,
+    RecipePreview,
     RecipeRead,
     RecipeUpdate,
 )
@@ -59,6 +61,7 @@ from app.services.cost_engine import (
     RecipeCost,
     RecipeLine,
     explode_recipe,
+    gross_quantity,
     quote_package,
     recipe_cost,
 )
@@ -100,7 +103,8 @@ async def list_recipes(session: AsyncSession, tenant_id: UUID) -> list[RecipeRea
                 cost_per_portion=cost,
                 cost_note=note,
                 items=[
-                    _item_read(item, ingredient_names, recipe_names) for item in lines
+                    _item_read(item, ingredient_names, recipe_names, ingredients)
+                    for item in lines
                 ],
             )
         )
@@ -191,6 +195,73 @@ async def add_recipe_item(
     )
     await session.flush()
     return await _recipe_read(session, tenant_id, recipe_id)
+
+
+async def update_recipe_item(
+    session: AsyncSession,
+    tenant_id: UUID,
+    item_id: UUID,
+    data: RecipeItemIn,
+) -> RecipeRead:
+    row = await owned(
+        session, RecipeItem, item_id, tenant_id, "No se encontró la línea"
+    )
+    ingredient_id, sub_recipe_id = await _line_targets(
+        session,
+        tenant_id,
+        row.recipe_id,
+        data.ingredient_id,
+        data.sub_recipe_id,
+    )
+    row.ingredient_id = ingredient_id
+    row.sub_recipe_id = sub_recipe_id
+    row.net_qty_per_portion = require_portion(
+        data.net_qty_per_portion,
+        "La cantidad neta debe ser mayor a cero",
+    )
+    session.add(row)
+    await session.flush()
+    return await _recipe_read(session, tenant_id, row.recipe_id)
+
+
+async def preview_recipe(
+    session: AsyncSession,
+    tenant_id: UUID,
+    recipe_id: UUID,
+    items: list[RecipeItemIn],
+) -> RecipePreview:
+    await owned(session, Recipe, recipe_id, tenant_id, "No se encontró la receta")
+    recipes = await _recipes(session, tenant_id)
+    ingredients = await _ingredient_rows(session, tenant_id)
+    kept = [
+        item
+        for item in await _items(session, tenant_id)
+        if item.recipe_id != recipe_id
+    ]
+    drafts: list[RecipeItem] = []
+    for data in items:
+        ingredient_id, sub_recipe_id = await _line_targets(
+            session,
+            tenant_id,
+            recipe_id,
+            data.ingredient_id,
+            data.sub_recipe_id,
+        )
+        drafts.append(
+            RecipeItem(
+                tenant_id=tenant_id,
+                recipe_id=recipe_id,
+                ingredient_id=ingredient_id,
+                sub_recipe_id=sub_recipe_id,
+                net_qty_per_portion=require_portion(
+                    data.net_qty_per_portion,
+                    "La cantidad neta debe ser mayor a cero",
+                ),
+            )
+        )
+    nodes, costs = _engine_maps(recipes, kept + drafts, ingredients)
+    cost, note = _portion_cost(recipe_id, nodes, costs)
+    return RecipePreview(cost_per_portion=cost, cost_note=note)
 
 
 async def delete_recipe_item(
@@ -438,7 +509,9 @@ async def list_extras(session: AsyncSession, tenant_id: UUID) -> list[ExtraRead]
         row.id: row.name for row in await _ingredient_rows(session, tenant_id)
     }
     recipes = {row.id: row.name for row in await _recipes(session, tenant_id)}
-    return [_extra_read(row, ingredients, recipes) for row in rows]
+    links = await _extra_category_map(session, tenant_id)
+    names = {row.id: row.name for row in await _category_rows(session)}
+    return [_extra_read(row, ingredients, recipes, links, names) for row in rows]
 
 
 async def create_extra(
@@ -458,6 +531,7 @@ async def create_extra(
     )
     session.add(row)
     await session.flush()
+    await _replace_extra_categories(session, tenant_id, row.id, data.category_ids)
     return await _extra_one(session, tenant_id, row.id)
 
 
@@ -504,6 +578,8 @@ async def update_extra(
         row.is_active = data.is_active
     session.add(row)
     await session.flush()
+    if "category_ids" in fields and data.category_ids is not None:
+        await _replace_extra_categories(session, tenant_id, row.id, data.category_ids)
     return await _extra_one(session, tenant_id, row.id)
 
 
@@ -511,6 +587,8 @@ async def delete_extra(session: AsyncSession, tenant_id: UUID, extra_id: UUID) -
     row = await owned(
         session, MenuExtra, extra_id, tenant_id, "No se encontró el extra"
     )
+    for link in await _links_for_extra(session, tenant_id, extra_id):
+        await session.delete(link)
     await session.delete(row)
 
 
@@ -656,9 +734,21 @@ def _item_read(
     item: RecipeItem,
     ingredient_names: dict[UUID, str],
     recipe_names: dict[UUID, str],
+    ingredients: list[Ingredient] | None = None,
 ) -> RecipeItemRead:
+    catalog = {row.id: row for row in ingredients or []}
+    unit: str | None = None
+    gross: float | None = None
     if item.ingredient_id is not None:
         label = ingredient_names.get(item.ingredient_id, "Insumo")
+        ingredient = catalog.get(item.ingredient_id)
+        if ingredient is not None:
+            unit = ingredient.unit.value
+            gross = gross_quantity(
+                item.net_qty_per_portion,
+                ingredient.waste_factor,
+                ingredient.cooking_yield_factor,
+            )
     elif item.sub_recipe_id is not None:
         label = recipe_names.get(item.sub_recipe_id, "Sub-receta")
     else:
@@ -668,7 +758,9 @@ def _item_read(
         ingredient_id=item.ingredient_id,
         sub_recipe_id=item.sub_recipe_id,
         label=label,
+        unit=unit,
         net_qty_per_portion=item.net_qty_per_portion,
+        gross_qty=gross,
     )
 
 
@@ -702,6 +794,8 @@ def _extra_read(
     row: MenuExtra,
     ingredients: dict[UUID, str],
     recipes: dict[UUID, str],
+    links: dict[UUID, list[UUID]] | None = None,
+    category_names: dict[UUID, str] | None = None,
 ) -> ExtraRead:
     if row.ingredient_id is not None:
         label = ingredients.get(row.ingredient_id, "Insumo")
@@ -709,6 +803,8 @@ def _extra_read(
         label = recipes.get(row.recipe_id, "Receta")
     else:
         label = "Sin vínculo"
+    category_ids = (links or {}).get(row.id, [])
+    names = category_names or {}
     return ExtraRead(
         id=row.id,
         name=row.name,
@@ -718,7 +814,55 @@ def _extra_read(
         unit_price=row.unit_price,
         pricing_type=row.pricing_type,
         is_active=row.is_active,
+        category_ids=category_ids,
+        category_names=[names.get(item, "Categoría") for item in category_ids],
     )
+
+
+async def _extra_category_map(
+    session: AsyncSession, tenant_id: UUID
+) -> dict[UUID, list[UUID]]:
+    result = await session.exec(
+        select(ExtraCategory).where(ExtraCategory.tenant_id == tenant_id)
+    )
+    grouped: dict[UUID, list[UUID]] = {}
+    for row in result.all():
+        grouped.setdefault(row.extra_id, []).append(row.category_id)
+    return grouped
+
+
+async def _links_for_extra(
+    session: AsyncSession, tenant_id: UUID, extra_id: UUID
+) -> list[ExtraCategory]:
+    result = await session.exec(
+        select(ExtraCategory).where(ExtraCategory.tenant_id == tenant_id)
+    )
+    return [row for row in result.all() if row.extra_id == extra_id]
+
+
+async def _replace_extra_categories(
+    session: AsyncSession,
+    tenant_id: UUID,
+    extra_id: UUID,
+    category_ids: list[UUID],
+) -> None:
+    for link in await _links_for_extra(session, tenant_id, extra_id):
+        await session.delete(link)
+    await session.flush()
+    seen: set[UUID] = set()
+    for category_id in category_ids:
+        if category_id in seen:
+            continue
+        seen.add(category_id)
+        await _require_category(session, category_id)
+        session.add(
+            ExtraCategory(
+                tenant_id=tenant_id,
+                extra_id=extra_id,
+                category_id=category_id,
+            )
+        )
+    await session.flush()
 
 
 def _portion_cost(
@@ -866,10 +1010,14 @@ async def _require_category(session: AsyncSession, category_id: UUID) -> None:
         )
 
 
-async def _categories(session: AsyncSession) -> list[CategoryRead]:
-    rows = await _category_rows(session)
+async def list_service_categories(session: AsyncSession) -> list[CategoryRead]:
+    rows = [row for row in await _category_rows(session) if row.is_active]
     rows.sort(key=lambda row: row.name.lower())
     return [CategoryRead(id=row.id, name=row.name, slug=row.slug) for row in rows]
+
+
+async def _categories(session: AsyncSession) -> list[CategoryRead]:
+    return await list_service_categories(session)
 
 
 async def _category_rows(session: AsyncSession) -> list[ServiceCategory]:

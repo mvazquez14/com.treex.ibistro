@@ -2,11 +2,10 @@
 
 import logging
 import math
-from collections.abc import Mapping
+from collections import Counter
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, time
 from decimal import Decimal
-from typing import Any
 from urllib.parse import quote
 from uuid import UUID
 
@@ -24,12 +23,15 @@ from app.models.enums import (
     QuoteStatus,
 )
 from app.models.equipment import EquipmentAsset, PackageEquipmentRule
-from app.models.tenant import ServiceScheduleSlot, Tenant
+from app.models.tenant import ServiceCategory, ServiceScheduleSlot, Tenant
 from app.schemas.catalog import ExtraRead, PackageRead, QuoteExtraIn, QuoteIn
 from app.schemas.quotes import (
+    AvailabilityDay,
+    AvailabilityStart,
     CalendarDay,
     CategoryChip,
     LandingPage,
+    MonthAvailability,
     PricePreview,
     PublicExtra,
     PublicGroup,
@@ -41,15 +43,23 @@ from app.schemas.quotes import (
     PublicSlot,
     PublicZone,
     QuoteAdjustIn,
+    QuoteChoice,
     QuoteDetail,
+    QuoteExtraPick,
+    QuoteLine,
     QuotesScreen,
+    ScheduleChoice,
     ZoneRead,
 )
 from app.services.availability import (
     SHORT_DAYS,
     assert_slot_open,
+    clock_text,
+    end_clock,
+    month_availability,
     open_reservations,
     open_slots,
+    parse_month,
     slot_label,
     upcoming_days,
 )
@@ -67,10 +77,14 @@ from app.services.cost_engine import (
     as_money,
     equipment_units,
 )
-from app.services.inventory_service import commit_recipe_explosion
 from app.services.menu_catalog import list_extras, list_packages, quote_for_package
 from app.services.pdf_quote import QuoteDocument, render_quote_pdf
-from app.services.schedule_catalog import list_photos, list_slot_reads, list_zones
+from app.services.schedule_catalog import (
+    list_photos,
+    list_slot_reads,
+    list_zones,
+    parse_clock,
+)
 from app.utils import render_email_template, send_email
 
 logger = logging.getLogger(__name__)
@@ -190,14 +204,22 @@ async def landing_page(session: AsyncSession, slug: str) -> LandingPage:
     extras = [
         extra for extra in await list_extras(session, tenant.id) if extra.is_active
     ]
+    catalog = {
+        row.id: row for row in (await session.exec(select(ServiceCategory))).all()
+    }
     seen: set[UUID] = set()
     categories: list[CategoryChip] = []
     for package in packages:
         if package.category_id in seen:
             continue
         seen.add(package.category_id)
+        source = catalog.get(package.category_id)
         categories.append(
-            CategoryChip(id=package.category_id, name=package.category_name)
+            CategoryChip(
+                id=package.category_id,
+                name=package.category_name,
+                icon=source.icon if source is not None else "",
+            )
         )
     known = {chip.name for chip in categories}
     tags = [tag for tag in tenant.category_tags if tag and tag not in known]
@@ -231,6 +253,7 @@ async def landing_page(session: AsyncSession, slug: str) -> LandingPage:
         concierge_url=concierge_url(tenant),
         min_guests=tenant.min_guests,
         max_guests=tenant.max_guests,
+        service_duration_minutes=tenant.service_duration_minutes,
     )
 
 
@@ -259,16 +282,65 @@ async def public_slots(
     tenant = await tenant_by_slug(session, slug)
     rows = await open_slots(session, tenant, event_date)
     slots = [
-        PublicSlot(
-            id=slot.id,
-            label=slot_label(slot.start_time, slot.end_time),
-            start_time=f"{slot.start_time:%H:%M}",
-            end_time=f"{slot.end_time:%H:%M}",
-            remaining=remaining,
-        )
-        for slot, remaining in rows
+        _public_start(tenant, slot, start, remaining) for slot, start, remaining in rows
     ]
     return tenant, slots
+
+
+async def public_month(session: AsyncSession, slug: str, month: str) -> MonthAvailability:
+    tenant = await tenant_by_slug(session, slug)
+    year, month_number = parse_month(month)
+    rows = await month_availability(session, tenant, year, month_number)
+    days: list[AvailabilityDay] = []
+    for current, day_status, opened in rows:
+        seen: list[str] = []
+        bookings: list[AvailabilityStart] = []
+        for slot, start in opened:
+            label = f"{start:%H:%M}"
+            if label not in seen:
+                seen.append(label)
+            bookings.append(AvailabilityStart(slot_id=slot.id, start=label))
+        days.append(
+            AvailabilityDay(
+                date=current,
+                weekday=current.weekday(),
+                status=day_status,
+                available_slots=seen,
+                bookings=bookings,
+            )
+        )
+    return MonthAvailability(
+        month=f"{year:04d}-{month_number:02d}",
+        service_duration_minutes=tenant.service_duration_minutes,
+        days=days,
+    )
+
+
+def _public_start(
+    tenant: Tenant,
+    slot: ServiceScheduleSlot,
+    start: time,
+    remaining: int,
+) -> PublicSlot:
+    end_at = _minutes(start) + tenant.service_duration_minutes
+    end = time(hour=(end_at // 60) % 24, minute=end_at % 60)
+    return PublicSlot(
+        id=slot.id,
+        label=f"{start:%H:%M}",
+        start_time=f"{start:%H:%M}",
+        end_time=f"{end:%H:%M}",
+        remaining=remaining,
+    )
+
+
+def _minutes(value: time) -> int:
+    return value.hour * 60 + value.minute
+
+
+def _chosen_start(data: PublicQuoteIn) -> time | None:
+    if not data.start_time:
+        return None
+    return parse_clock(data.start_time)
 
 
 async def preview_public_quote(
@@ -316,12 +388,15 @@ async def submit_quote_for_tenant(
     )
     session.add(lead)
     await session.flush()
+    chosen = _chosen_start(data)
     quote = Quote(
         tenant_id=tenant.id,
         lead_id=lead.id,
         package_id=data.package_id,
         delivery_zone_id=data.delivery_zone_id,
         event_date=data.event_date,
+        event_start=chosen,
+        end_time=end_clock(chosen, tenant.service_duration_minutes) if chosen else None,
         slot_id=data.slot_id,
         venue_address=venue,
         guest_count=data.guest_count,
@@ -348,13 +423,46 @@ async def submit_quote_for_tenant(
     session.add(quote)
     await session.flush()
     tracking = notify_new_quote(
-        tenant=tenant, lead=lead, token=quote.public_token, event_date=data.event_date
+        tenant=tenant,
+        lead=lead,
+        token=quote.public_token,
+        event_date=data.event_date,
+        summary=_provider_summary(priced.package_name, data.guest_count, priced.options),
     )
-    return _public_out(tenant, quote, priced.package_name, priced.slot_label, tracking)
+    extras_summary = ", ".join(
+        f"{line['quantity']}x {line['name']}" for line in priced.extras
+    )
+    variant_summary = _variant_text(list(priced.options))
+    client_note = " ".join(
+        part
+        for part in (
+            f"Hola, acabo de solicitar una cotización. Folio {quote.public_token}.",
+            f"{priced.package_name}, {data.guest_count} invitados,",
+            f"el {data.event_date:%d/%m/%Y} a las {priced.slot_label}.",
+            variant_summary,
+            extras_summary,
+        )
+        if part
+    )
+    return _public_out(
+        tenant,
+        quote,
+        priced.package_name,
+        priced.slot_label,
+        tracking,
+        variant_summary=variant_summary,
+        extras_summary=extras_summary,
+        client_whatsapp_url=wa_link(tenant.whatsapp_phone, client_note),
+    )
 
 
 def notify_new_quote(
-    *, tenant: Tenant, lead: Lead, token: UUID, event_date: date
+    *,
+    tenant: Tenant,
+    lead: Lead,
+    token: UUID,
+    event_date: date,
+    summary: str = "",
 ) -> str:
     """WhatsApp the provider and email the lead when SMTP is configured.
 
@@ -369,7 +477,7 @@ def notify_new_quote(
         tenant.whatsapp_phone,
         (
             f"Nueva cotización {token} de {lead.full_name} "
-            f"para el {event_date:%d/%m/%Y}."
+            f"para el {event_date:%d/%m/%Y}. {summary}".strip()
         ),
     )
     if provider:
@@ -424,6 +532,181 @@ async def get_quote(
     return await _detail(session, tenant_id, quote)
 
 
+def _service_edit(data: QuoteAdjustIn) -> bool:
+    return any(
+        value is not None
+        for value in (
+            data.guest_count,
+            data.package_id,
+            data.slot_id,
+            data.start_time,
+            data.event_date,
+            data.selected_options,
+            data.extras,
+            data.manual_total,
+        )
+    )
+
+
+def _stored_options(raw: object) -> dict[UUID, list[UUID]]:
+    if not isinstance(raw, dict):
+        return {}
+    parsed: dict[UUID, list[UUID]] = {}
+    for key, recipes in raw.items():
+        try:
+            group_id = UUID(str(key))
+        except ValueError:
+            continue
+        ids: list[UUID] = []
+        if isinstance(recipes, list):
+            for recipe in recipes:
+                try:
+                    ids.append(UUID(str(recipe)))
+                except ValueError:
+                    continue
+        parsed[group_id] = ids
+    return parsed
+
+
+def _stored_extra_inputs(raw: object) -> list[QuoteExtraIn]:
+    if not isinstance(raw, list):
+        return []
+    extras: list[QuoteExtraIn] = []
+    for item in raw:
+        if not isinstance(item, dict) or "extra_id" not in item:
+            continue
+        try:
+            extras.append(
+                QuoteExtraIn(
+                    extra_id=UUID(str(item["extra_id"])),
+                    quantity=float(item.get("quantity") or 1),
+                )
+            )
+        except (TypeError, ValueError):
+            continue
+    return extras
+
+
+def choice_rows(raw: object) -> list[QuoteChoice]:
+    rows: list[QuoteChoice] = []
+    for group_id, recipes in _stored_options(raw).items():
+        for recipe_id, quantity in Counter(recipes).items():
+            rows.append(
+                QuoteChoice(group_id=group_id, recipe_id=recipe_id, quantity=quantity)
+            )
+    return rows
+
+
+def extra_pick_rows(raw: object) -> list[QuoteExtraPick]:
+    rows: list[QuoteExtraPick] = []
+    for item in _dict_lines(raw):
+        raw_id = item.get("extra_id", "")
+        if not raw_id:
+            continue
+        try:
+            extra_id = UUID(raw_id)
+        except ValueError:
+            continue
+        rows.append(
+            QuoteExtraPick(
+                extra_id=extra_id,
+                name=item.get("name", ""),
+                quantity=item.get("quantity") or "1",
+            )
+        )
+    return rows
+
+
+def display_lines(raw: object, label_key: str) -> list[QuoteLine]:
+    lines: list[QuoteLine] = []
+    for item in _dict_lines(raw):
+        label = item.get(label_key, "")
+        if not label:
+            continue
+        lines.append(QuoteLine(name=label, quantity=item.get("quantity") or "1"))
+    return lines
+
+
+def _service_input(quote: Quote, data: QuoteAdjustIn) -> PublicQuoteIn:
+    start = data.start_time or clock_text(quote.event_start) or None
+    return PublicQuoteIn(
+        package_id=data.package_id or quote.package_id,
+        event_date=data.event_date or quote.event_date,
+        slot_id=data.slot_id or quote.slot_id,
+        guest_count=data.guest_count or quote.guest_count,
+        full_name="Cliente",
+        phone="+520000000000",
+        whatsapp_phone="+520000000000",
+        venue_address=quote.venue_address,
+        special_requests=quote.special_requests,
+        selected_options=data.selected_options
+        if data.selected_options is not None
+        else _stored_options(quote.selected_options_json),
+        extras=data.extras
+        if data.extras is not None
+        else _stored_extra_inputs(quote.selected_extras_json.get("items")),
+        delivery_zone_id=quote.delivery_zone_id,
+        start_time=start,
+    )
+
+
+async def rewrite_quote(
+    session: AsyncSession,
+    tenant: Tenant,
+    quote: Quote,
+    data: QuoteAdjustIn,
+    *,
+    ignore_reservation_id: UUID | None = None,
+) -> QuoteDetail:
+    linked = await _linked_reservations(session, tenant.id, quote.id)
+    open_row = _open_reservation(linked)
+    if open_row is not None and open_row.id != ignore_reservation_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La cotización ya es una reservación",
+        )
+    payload = _service_input(quote, data)
+    priced = await _price_event(
+        session,
+        tenant,
+        payload,
+        quote.discount_amount,
+        ignore_reservation_id=ignore_reservation_id,
+        ignore_quote_id=quote.id if ignore_reservation_id is not None else None,
+    )
+    chosen = _chosen_start(payload)
+    quote.package_id = payload.package_id
+    quote.event_date = payload.event_date
+    quote.event_start = chosen
+    quote.end_time = (
+        end_clock(chosen, tenant.service_duration_minutes) if chosen else None
+    )
+    quote.slot_id = payload.slot_id
+    quote.guest_count = payload.guest_count
+    quote.waiters_count = priced.waiters
+    quote.selected_options_json = _option_ids(payload)
+    quote.selected_extras_json = {
+        "items": list(priced.extras),
+        "options": list(priced.options),
+        "package_name": priced.package_name,
+        "package_price": money_text(priced.package_price),
+        "freight": money_text(priced.freight),
+        "freight_name": priced.freight_name,
+        "waiter_cost": money_text(priced.waiter_cost),
+    }
+    quote.selected_equipment_json = {"lines": list(priced.equipment)}
+    quote.subtotal = priced.subtotal
+    quote.discount_amount = priced.discount
+    quote.tax_amount = priced.tax
+    quote.total_amount = (
+        as_money(data.manual_total) if data.manual_total is not None else priced.total
+    )
+    quote.estimated_cogs = priced.cogs
+    session.add(quote)
+    await session.flush()
+    return await _detail(session, tenant.id, quote)
+
+
 async def adjust_quote(
     session: AsyncSession,
     tenant: Tenant,
@@ -431,12 +714,13 @@ async def adjust_quote(
     data: QuoteAdjustIn,
 ) -> QuoteDetail:
     quote = await _owned_quote(session, tenant.id, quote_id)
-    if quote.status is QuoteStatus.APPROVED or await _reservation_for(
-        session, tenant.id, quote.id
-    ):
+    if _service_edit(data):
+        return await rewrite_quote(session, tenant, quote, data)
+    linked = await _linked_reservations(session, tenant.id, quote.id)
+    if _open_reservation(linked) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="La cotización ya está aprobada",
+            detail="La cotización ya es una reservación",
         )
     rate = (
         clean_rate(data.tax_rate)
@@ -474,7 +758,7 @@ async def quote_pdf(
         waiters=str(detail.waiters_count),
         package_name=detail.package_name,
         options=tuple(
-            (line["group"], line["recipe"])
+            (line["group"], f"{line.get('quantity', '1')}x {line['recipe']}")
             for line in _dict_lines(payload.get("options"))
         ),
         extras=tuple(
@@ -500,11 +784,33 @@ async def quote_pdf(
     return str(quote.public_token), render_quote_pdf(document)
 
 
-async def convert_quote(
-    session: AsyncSession, tenant: Tenant, quote_id: UUID
+async def approve_quote(
+    session: AsyncSession,
+    tenant: Tenant,
+    quote_id: UUID,
 ) -> QuoteDetail:
     quote = await _owned_quote(session, tenant.id, quote_id)
-    if await _reservation_for(session, tenant.id, quote.id):
+    if quote.status is QuoteStatus.REJECTED:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="La cotización está rechazada",
+        )
+    if quote.status is not QuoteStatus.APPROVED:
+        quote.status = QuoteStatus.APPROVED
+        session.add(quote)
+        await session.flush()
+    return await _detail(session, tenant.id, quote)
+
+
+async def convert_quote(
+    session: AsyncSession,
+    tenant: Tenant,
+    quote_id: UUID,
+    choice: ScheduleChoice | None = None,
+) -> QuoteDetail:
+    quote = await _owned_quote(session, tenant.id, quote_id)
+    linked = await _linked_reservations(session, tenant.id, quote.id)
+    if _open_reservation(linked) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Esta cotización ya es una reservación",
@@ -520,25 +826,20 @@ async def convert_quote(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No se encontró el contacto",
         )
-    await assert_slot_open(session, tenant, quote.event_date, quote.slot_id)
+    if choice is not None:
+        await apply_schedule(session, tenant, quote=quote, reservation=None, choice=choice)
+    if quote.event_start is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Elige una hora",
+        )
+    if quote.end_time is None:
+        quote.end_time = end_clock(quote.event_start, tenant.service_duration_minutes)
+    await assert_slot_open(
+        session, tenant, quote.event_date, quote.slot_id, quote.event_start
+    )
     equipment = _dict_lines(quote.selected_equipment_json.get("lines"))
     await _assert_equipment(session, tenant.id, quote.event_date, equipment, quote.id)
-    quoted = await quote_for_package(
-        session,
-        tenant.id,
-        quote.package_id,
-        QuoteIn(
-            guest_count=quote.guest_count,
-            selected_options=_stored_options(quote.selected_options_json),
-            extras=[
-                QuoteExtraIn(
-                    extra_id=UUID(line["extra_id"]),
-                    quantity=float(line["quantity"]),
-                )
-                for line in _dict_lines(quote.selected_extras_json.get("items"))
-            ],
-        ),
-    )
     reservation = Reservation(
         tenant_id=tenant.id,
         quote_id=quote.id,
@@ -546,6 +847,8 @@ async def convert_quote(
         customer_phone=lead.whatsapp_phone or lead.phone,
         venue_address=quote.venue_address,
         event_date=quote.event_date,
+        event_start=quote.event_start,
+        end_time=quote.end_time,
         slot_id=quote.slot_id,
         guest_count=quote.guest_count,
         total_amount=quote.total_amount,
@@ -556,27 +859,6 @@ async def convert_quote(
     )
     session.add(reservation)
     await session.flush()
-    needs = [
-        IngredientNeed(
-            ingredient_id=line.ingredient_id,
-            net_qty=line.net_qty,
-            gross_qty=line.gross_qty,
-            cost=line.cost,
-        )
-        for line in quoted.explosion
-        if line.gross_qty > 0
-    ]
-    try:
-        if needs:
-            await commit_recipe_explosion(
-                session,
-                tenant_id=tenant.id,
-                lines=needs,
-                reference_id=reservation.id,
-            )
-    except HTTPException:
-        await session.delete(reservation)
-        raise
     quote.status = QuoteStatus.APPROVED
     session.add(quote)
     await session.flush()
@@ -588,10 +870,26 @@ async def _price_event(
     tenant: Tenant,
     data: PublicQuoteIn,
     discount: Decimal,
+    *,
+    ignore_reservation_id: UUID | None = None,
+    ignore_quote_id: UUID | None = None,
 ) -> PricedEvent:
     package = await _active_package(session, tenant.id, data.package_id)
     _check_guests(tenant, package, data.guest_count)
-    slot = await assert_slot_open(session, tenant, data.event_date, data.slot_id)
+    start = _chosen_start(data)
+    if start is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Elige una hora",
+        )
+    slot = await assert_slot_open(
+        session,
+        tenant,
+        data.event_date,
+        data.slot_id,
+        start,
+        ignore_id=ignore_reservation_id,
+    )
     zone = await _zone(session, tenant.id, data.delivery_zone_id)
     quoted = await quote_for_package(
         session,
@@ -610,7 +908,7 @@ async def _price_event(
     )
     equipment = await _equipment_lines(session, tenant.id, package.id, data.guest_count)
     await _assert_equipment(
-        session, tenant.id, data.event_date, equipment, ignore_quote_id=None
+        session, tenant.id, data.event_date, equipment, ignore_quote_id
     )
     equipment_total = sum(
         (Decimal(line["rental"]) for line in equipment),
@@ -647,7 +945,7 @@ async def _price_event(
         total=total,
         cogs=quoted.cogs,
         explosion=needs,
-        slot_label=slot_label(slot.start_time, slot.end_time),
+        slot_label=_booked_label(slot, start, tenant),
     )
 
 
@@ -718,11 +1016,43 @@ def _extra_lines(extras: list[ExtraRead], data: PublicQuoteIn) -> list[dict[str,
 def _option_names(package: PackageRead, data: PublicQuoteIn) -> list[dict[str, str]]:
     lines: list[dict[str, str]] = []
     for group in package.groups:
-        chosen = set(data.selected_options.get(group.id, []))
+        counts = Counter(data.selected_options.get(group.id, []))
         for option in group.options:
-            if group.is_fixed or option.recipe_id in chosen:
-                lines.append({"group": group.group_name, "recipe": option.recipe_name})
+            quantity = 1 if group.is_fixed else counts.get(option.recipe_id, 0)
+            if quantity:
+                lines.append(
+                    {
+                        "group": group.group_name,
+                        "recipe": option.recipe_name,
+                        "quantity": str(quantity),
+                    }
+                )
     return lines
+
+
+def _provider_summary(
+    package_name: str, guests: int, options: tuple[dict[str, str], ...]
+) -> str:
+    return f"{package_name}, {guests} invitados. {_variant_text(list(options))}".strip()
+
+
+def _booked_label(slot: ServiceScheduleSlot, start: time | None, tenant: Tenant) -> str:
+    begin = start or slot.start_time
+    end_at = _minutes(begin) + tenant.service_duration_minutes
+    end = time(hour=(end_at // 60) % 24, minute=end_at % 60)
+    return slot_label(begin, end)
+
+
+def _variant_text(lines: list[dict[str, str]]) -> str:
+    grouped: dict[str, list[str]] = {}
+    for line in lines:
+        recipe = line.get("recipe", "")
+        if not recipe:
+            continue
+        grouped.setdefault(line.get("group", "Variantes"), []).append(
+            f"{line.get('quantity', '1')}x {recipe}"
+        )
+    return ". ".join(f"{name}: {', '.join(items)}" for name, items in grouped.items())
 
 
 def _option_ids(data: PublicQuoteIn) -> dict[str, list[str]]:
@@ -830,19 +1160,6 @@ def _dict_lines(value: object) -> list[dict[str, str]]:
     return lines
 
 
-def _stored_options(raw: Mapping[str, Any]) -> dict[UUID, list[UUID]]:
-    selected: dict[UUID, list[UUID]] = {}
-    for key, value in raw.items():
-        try:
-            group_id = UUID(str(key))
-        except ValueError:
-            continue
-        if not isinstance(value, list):
-            continue
-        selected[group_id] = [UUID(str(item)) for item in value]
-    return selected
-
-
 def _preview(tenant: Tenant, priced: PricedEvent) -> PricePreview:
     show = tenant.show_prices_public
     return PricePreview(
@@ -858,7 +1175,15 @@ def _preview(tenant: Tenant, priced: PricedEvent) -> PricePreview:
 
 
 def _public_out(
-    tenant: Tenant, quote: Quote, package_name: str, slot: str, tracking: str
+    tenant: Tenant,
+    quote: Quote,
+    package_name: str,
+    slot: str,
+    tracking: str,
+    *,
+    variant_summary: str = "",
+    extras_summary: str = "",
+    client_whatsapp_url: str = "",
 ) -> PublicQuoteOut:
     show = tenant.show_prices_public
     return PublicQuoteOut(
@@ -876,25 +1201,33 @@ def _public_out(
         tax_amount=quote.tax_amount if show else None,
         total_amount=quote.total_amount if show else None,
         tracking_url=tracking,
+        variant_summary=variant_summary,
+        extras_summary=extras_summary,
+        client_whatsapp_url=client_whatsapp_url,
     )
 
 
 async def _detail(session: AsyncSession, tenant_id: UUID, quote: Quote) -> QuoteDetail:
     lead = await session.get(Lead, quote.lead_id)
     package_name = str(quote.selected_extras_json.get("package_name") or "")
-    if not package_name:
-        for package in await list_packages(session, tenant_id):
-            if package.id == quote.package_id:
+    category_name = ""
+    for package in await list_packages(session, tenant_id):
+        if package.id == quote.package_id:
+            category_name = package.category_name
+            if not package_name:
                 package_name = package.name
-                break
+            break
     if not package_name:
         package_name = "Paquete"
-    slot_text = ""
-    found = await session.get(ServiceScheduleSlot, quote.slot_id)
-    if found is not None:
-        slot_text = slot_label(found.start_time, found.end_time)
-    reservation = await _reservation_for(session, tenant_id, quote.id)
+    start_time = clock_text(quote.event_start)
+    end_time = clock_text(quote.end_time)
+    slot_text = f"{start_time}–{end_time}" if start_time and end_time else start_time
+    linked = await _linked_reservations(session, tenant_id, quote.id)
+    reservation = _open_reservation(linked)
     taxable = quote.subtotal - quote.discount_amount
+    phone = lead.whatsapp_phone if lead is not None and lead.whatsapp_phone else ""
+    if not phone and lead is not None:
+        phone = lead.phone
     return QuoteDetail(
         id=quote.id,
         public_token=quote.public_token,
@@ -904,9 +1237,20 @@ async def _detail(session: AsyncSession, tenant_id: UUID, quote: Quote) -> Quote
         phone=lead.phone if lead is not None else "",
         whatsapp_phone=lead.whatsapp_phone if lead is not None else "",
         email=lead.email if lead is not None else None,
+        package_id=quote.package_id,
+        slot_id=quote.slot_id,
         package_name=package_name,
+        folio=str(quote.public_token)[:8].upper(),
+        category_name=category_name,
+        whatsapp_url=wa_link(phone, "Hola, te escribo por tu cotización."),
+        variants=display_lines(quote.selected_extras_json.get("options"), "recipe"),
+        extras=display_lines(quote.selected_extras_json.get("items"), "name"),
+        choices=choice_rows(quote.selected_options_json),
+        extra_picks=extra_pick_rows(quote.selected_extras_json.get("items")),
         event_date=quote.event_date,
         slot_label=slot_text,
+        start_time=start_time,
+        end_time=end_time,
         venue_address=quote.venue_address,
         guest_count=quote.guest_count,
         waiters_count=quote.waiters_count,
@@ -917,8 +1261,17 @@ async def _detail(session: AsyncSession, tenant_id: UUID, quote: Quote) -> Quote
         estimated_cogs=quote.estimated_cogs,
         special_requests=quote.special_requests,
         reservation_id=reservation.id if reservation is not None else None,
+        can_rebook=reservation is None
+        and any(
+            row.operation_status in {OperationStatus.COMPLETED, OperationStatus.CANCELLED}
+            for row in linked
+        ),
         apply_tax=quote.tax_amount > 0,
         tax_rate=_implied_rate(quote, taxable),
+        variant_summary=_variant_text(
+            _dict_lines(quote.selected_extras_json.get("options"))
+        ),
+        created_at=quote.created_at,
     )
 
 
@@ -928,14 +1281,81 @@ def _implied_rate(quote: Quote, taxable: Decimal) -> Decimal:
     return Decimal("0.00")
 
 
-async def _reservation_for(
+async def apply_schedule(
+    session: AsyncSession,
+    tenant: Tenant,
+    *,
+    quote: Quote | None,
+    reservation: Reservation | None,
+    choice: ScheduleChoice,
+) -> None:
+    if reservation is not None and reservation.operation_status in {
+        OperationStatus.COMPLETED,
+        OperationStatus.CANCELLED,
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="La reservación está cerrada y no se puede modificar",
+        )
+    start = parse_clock(choice.start_time)
+    await assert_slot_open(
+        session,
+        tenant,
+        choice.event_date,
+        choice.slot_id,
+        start,
+        ignore_id=reservation.id if reservation is not None else None,
+    )
+    end = end_clock(start, tenant.service_duration_minutes)
+    if quote is not None:
+        quote.event_date = choice.event_date
+        quote.event_start = start
+        quote.end_time = end
+        quote.slot_id = choice.slot_id
+        session.add(quote)
+    if reservation is not None:
+        reservation.event_date = choice.event_date
+        reservation.event_start = start
+        reservation.end_time = end
+        reservation.slot_id = choice.slot_id
+        session.add(reservation)
+    await session.flush()
+
+
+async def reschedule_quote(
+    session: AsyncSession, tenant: Tenant, quote_id: UUID, choice: ScheduleChoice
+) -> QuoteDetail:
+    quote = await _owned_quote(session, tenant.id, quote_id)
+    if quote.status is QuoteStatus.REJECTED:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="La cotización está rechazada",
+        )
+    linked = await _linked_reservations(session, tenant.id, quote.id)
+    await apply_schedule(
+        session,
+        tenant,
+        quote=quote,
+        reservation=_open_reservation(linked),
+        choice=choice,
+    )
+    return await _detail(session, tenant.id, quote)
+
+
+async def _linked_reservations(
     session: AsyncSession, tenant_id: UUID, quote_id: UUID
-) -> Reservation | None:
+) -> list[Reservation]:
     result = await session.exec(
         select(Reservation).where(Reservation.tenant_id == tenant_id)
     )
-    for row in result.all():
-        if row.quote_id == quote_id:
+    rows = [row for row in result.all() if row.quote_id == quote_id]
+    rows.sort(key=lambda row: (row.created_at, str(row.id)))
+    return rows
+
+
+def _open_reservation(rows: list[Reservation]) -> Reservation | None:
+    for row in rows:
+        if row.operation_status in {OperationStatus.CONFIRMED, OperationStatus.IN_PREP}:
             return row
     return None
 
@@ -953,6 +1373,7 @@ def _public_package(package: PackageRead, show: bool) -> PublicPackage:
         category_name=package.category_name,
         name=package.name,
         description=package.description,
+        photo_url=package.photo_url,
         min_guests=package.min_guests,
         base_price_per_guest=package.base_price_per_guest if show else None,
         groups=[
@@ -984,6 +1405,7 @@ def _public_extra(extra: ExtraRead, show: bool) -> PublicExtra:
         name=extra.name,
         pricing_type=extra.pricing_type,
         unit_price=extra.unit_price if show else None,
+        category_ids=extra.category_ids,
     )
 
 

@@ -29,6 +29,7 @@ from app.models.inventory import (
 )
 from app.models.menu import (
     CateringPackage,
+    ExtraCategory,
     MenuExtra,
     PackageGroupOption,
     PackageRecipeGroup,
@@ -48,6 +49,7 @@ __all__ = [
     "CateringPackage",
     "DeliveryZone",
     "EquipmentAsset",
+    "ExtraCategory",
     "EquipmentCategory",
     "Ingredient",
     "IngredientUnit",

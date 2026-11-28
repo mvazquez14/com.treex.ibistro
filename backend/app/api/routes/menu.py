@@ -1,12 +1,14 @@
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
 from app.api.deps import CurrentActiveTenant, SessionDep
 from app.schemas.catalog import (
+    CategoryRead,
     ExtraIn,
     ExtraRead,
     ExtraUpdate,
+    MenuPhotoRead,
     PackageGroupIn,
     PackageGroupUpdate,
     PackageIn,
@@ -17,12 +19,32 @@ from app.schemas.catalog import (
     QuoteRead,
     RecipeIn,
     RecipeItemIn,
+    RecipePreview,
+    RecipePreviewIn,
     RecipeRead,
     RecipeUpdate,
 )
 from app.services import menu_catalog
+from app.services.menu_photos import save_menu_photo
 
 router = APIRouter(prefix="/menu", tags=["menu"])
+
+
+@router.get("/categories", response_model=list[CategoryRead])
+async def list_categories(
+    session: SessionDep, _tenant: CurrentActiveTenant
+) -> list[CategoryRead]:
+    return await menu_catalog.list_service_categories(session)
+
+
+@router.post(
+    "/photos", response_model=MenuPhotoRead, status_code=status.HTTP_201_CREATED
+)
+async def upload_photo(
+    tenant: CurrentActiveTenant, photo: UploadFile = File()
+) -> MenuPhotoRead:
+    url = await save_menu_photo(tenant.id, photo)
+    return MenuPhotoRead(url=url)
 
 
 @router.get("/recipes", response_model=list[RecipeRead])
@@ -85,6 +107,28 @@ async def add_recipe_item(
     data: RecipeItemIn,
 ) -> RecipeRead:
     recipe = await menu_catalog.add_recipe_item(session, tenant.id, recipe_id, data)
+    await session.commit()
+    return recipe
+
+
+@router.post("/recipes/{recipe_id}/preview", response_model=RecipePreview)
+async def preview_recipe(
+    session: SessionDep,
+    tenant: CurrentActiveTenant,
+    recipe_id: UUID,
+    data: RecipePreviewIn,
+) -> RecipePreview:
+    return await menu_catalog.preview_recipe(session, tenant.id, recipe_id, data.items)
+
+
+@router.patch("/recipe-items/{item_id}", response_model=RecipeRead)
+async def update_recipe_item(
+    session: SessionDep,
+    tenant: CurrentActiveTenant,
+    item_id: UUID,
+    data: RecipeItemIn,
+) -> RecipeRead:
+    recipe = await menu_catalog.update_recipe_item(session, tenant.id, item_id, data)
     await session.commit()
     return recipe
 

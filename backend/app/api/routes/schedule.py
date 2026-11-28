@@ -1,21 +1,42 @@
 """Schedule, gallery, and delivery zones."""
 
+from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Query, status
 
 from app.api.deps import CurrentActiveTenant, SessionDep
 from app.schemas.quotes import (
     PhotoIn,
     PhotoRead,
+    ScheduleChoice,
     SlotIn,
     SlotRead,
     ZoneIn,
     ZoneRead,
 )
 from app.services import schedule_catalog as catalog
+from app.services.availability import clock_text, open_slots
 
 router = APIRouter(prefix="/schedule", tags=["schedule"])
+
+
+@router.get("/openings", response_model=list[ScheduleChoice])
+async def list_openings(
+    session: SessionDep,
+    tenant: CurrentActiveTenant,
+    day: date = Query(alias="date"),
+    ignore_reservation_id: UUID | None = None,
+) -> list[ScheduleChoice]:
+    rows = await open_slots(session, tenant, day, ignore_reservation_id)
+    return [
+        ScheduleChoice(
+            event_date=day,
+            slot_id=slot.id,
+            start_time=clock_text(start),
+        )
+        for slot, start, _remaining in rows
+    ]
 
 
 @router.get("/slots", response_model=list[SlotRead])
@@ -32,6 +53,15 @@ async def create_slot(
     created = await catalog.create_slot(session, tenant.id, data)
     await session.commit()
     return created
+
+
+@router.patch("/slots/{slot_id}", response_model=SlotRead)
+async def patch_slot(
+    session: SessionDep, tenant: CurrentActiveTenant, slot_id: UUID, data: SlotIn
+) -> SlotRead:
+    updated = await catalog.update_slot(session, tenant.id, slot_id, data)
+    await session.commit()
+    return updated
 
 
 @router.delete("/slots/{slot_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -9,21 +9,24 @@
     <script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>
     <style>
       body { background: #09090B; color: #fafafa; }
-      .card { background: #18181B; }
+      .card { background: rgb(24 24 27 / 0.92); }
       input, select, textarea {
         width: 100%;
-        border-radius: 0.5rem;
+        border-radius: 0.75rem;
         border: 1px solid #3f3f46;
-        background: #09090B;
+        background: #27272a;
         color: #fafafa;
-        padding: 0.45rem 0.7rem;
+        padding: 0.75rem 0.9rem;
+        font-size: 1rem;
       }
-      button.primary, a.primary { background: #FFC72C; color: #09090B; font-weight: 600; }
+      button.primary, a.primary { background: #FACC15; color: #09090B; font-weight: 600; }
       button.primary:hover, a.primary:hover { background: #FEDD62; }
+      button.primary:disabled { opacity: 0.45; }
+      [x-cloak] { display: none !important; }
     </style>
   </head>
   <body class="min-h-screen bg-[#09090B] text-zinc-100">
-    <main class="mx-auto max-w-3xl px-4 py-8">
+    <main class="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
       {% block content %}{% endblock %}
     </main>
     <script>

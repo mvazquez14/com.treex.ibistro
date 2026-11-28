@@ -29,7 +29,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "==> [Prod] rsync -> ${Remote}:${RemotePath}/" -ForegroundColor Cyan
-& wsl rsync -av --filter=":- .gitignore" `
+& wsl rsync -av --delete --filter=":- .gitignore" `
     --exclude ".env" `
     --exclude ".venv" `
     --exclude "node_modules" `

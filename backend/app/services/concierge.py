@@ -1,6 +1,6 @@
 """Search and quoting for the Orion WhatsApp concierge."""
 
-from datetime import date
+from datetime import date, time
 from urllib.parse import urlencode
 from uuid import UUID
 
@@ -20,7 +20,7 @@ from app.schemas.concierge import (
     ConciergeQuoteIn,
 )
 from app.schemas.quotes import PublicQuoteIn, PublicQuoteOut, PublicSlot
-from app.services.availability import open_slots, slot_label, upcoming_days
+from app.services.availability import open_slots, upcoming_days
 from app.services.quoting import landing_page, public_profile, submit_quote_for_tenant
 
 MASTER_CATALOG_ORG_ID = "master-catalog"
@@ -118,6 +118,7 @@ async def create_quote(session: AsyncSession, data: ConciergeQuoteIn) -> PublicQ
             package_id=data.package_id,
             event_date=data.event_date,
             slot_id=data.slot_id,
+            start_time=data.start_time,
             guest_count=data.guest_count,
             full_name=data.full_name,
             phone=data.phone,
@@ -148,16 +149,20 @@ async def _public_slots(
     session: AsyncSession, tenant: Tenant, event_date: date
 ) -> list[PublicSlot]:
     rows = await open_slots(session, tenant, event_date)
-    return [
-        PublicSlot(
-            id=slot.id,
-            label=slot_label(slot.start_time, slot.end_time),
-            start_time=f"{slot.start_time:%H:%M}",
-            end_time=f"{slot.end_time:%H:%M}",
-            remaining=remaining,
+    slots: list[PublicSlot] = []
+    for slot, start, remaining in rows:
+        end_at = start.hour * 60 + start.minute + tenant.service_duration_minutes
+        end = time(hour=(end_at // 60) % 24, minute=end_at % 60)
+        slots.append(
+            PublicSlot(
+                id=slot.id,
+                label=f"{start:%H:%M}",
+                start_time=f"{start:%H:%M}",
+                end_time=f"{end:%H:%M}",
+                remaining=remaining,
+            )
         )
-        for slot, remaining in rows
-    ]
+    return slots
 
 
 def _landing_url(

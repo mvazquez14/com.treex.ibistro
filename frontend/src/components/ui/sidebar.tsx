@@ -1,6 +1,6 @@
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
-import { PanelLeftIcon } from "lucide-react"
+import { LayoutSideContentLeft as PanelLeftIcon } from "@gravity-ui/icons"
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"

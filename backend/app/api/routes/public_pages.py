@@ -3,14 +3,14 @@
 from datetime import date
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from starlette.datastructures import FormData
 from starlette.responses import Response
 
 from app.api.deps import SessionDep
 from app.api.forms import float_field, int_field, optional_uuid
 from app.schemas.catalog import QuoteExtraIn
-from app.schemas.quotes import PublicQuoteIn
+from app.schemas.quotes import MonthAvailability, PublicQuoteIn
 from app.services import quoting
 from app.templating import failure, templates
 
@@ -39,7 +39,10 @@ def _texts(form: FormData, name: str) -> list[str]:
 async def _quote_form(request: Request) -> PublicQuoteIn:
     form = await request.form()
     package_id = optional_uuid(_text(form, "package_id"))
-    slot_id = optional_uuid(_text(form, "slot_id"))
+    booking = _text(form, "booking")
+    slot_raw, _sep, start_raw = booking.partition("|")
+    slot_id = optional_uuid(slot_raw) or optional_uuid(_text(form, "slot_id"))
+    start_time = start_raw or _text(form, "start_time") or None
     if package_id is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -52,12 +55,13 @@ async def _quote_form(request: Request) -> PublicQuoteIn:
         )
     selected: dict[UUID, list[UUID]] = {}
     for raw in _texts(form, "choice"):
-        group_raw, sep, recipe_raw = raw.partition(":")
+        group_raw, sep, rest = raw.partition(":")
         if not sep:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="La variante no es válida",
             )
+        recipe_raw, qty_sep, qty_raw = rest.partition(":")
         group_id = optional_uuid(group_raw)
         recipe_id = optional_uuid(recipe_raw)
         if group_id is None or recipe_id is None:
@@ -65,7 +69,19 @@ async def _quote_form(request: Request) -> PublicQuoteIn:
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="La variante no es válida",
             )
-        selected.setdefault(group_id, []).append(recipe_id)
+        if qty_sep:
+            try:
+                quantity = int(qty_raw)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="La variante no es válida",
+                )
+        else:
+            quantity = 1
+        if quantity < 1:
+            continue
+        selected.setdefault(group_id, []).extend([recipe_id] * quantity)
     extras: list[QuoteExtraIn] = []
     for raw in _texts(form, "extra"):
         extra_id = optional_uuid(raw)
@@ -92,6 +108,7 @@ async def _quote_form(request: Request) -> PublicQuoteIn:
         selected_options=selected,
         extras=extras,
         delivery_zone_id=optional_uuid(_text(form, "delivery_zone_id")),
+        start_time=start_time,
     )
 
 
@@ -103,6 +120,15 @@ def _error(request: Request, exc: HTTPException) -> Response:
         {"message": message},
         status_code=code,
     )
+
+
+@router.get("/c/{slug}/availability", response_model=MonthAvailability)
+async def availability(
+    session: SessionDep,
+    slug: str,
+    month: str = Query(min_length=7, max_length=7),
+) -> MonthAvailability:
+    return await quoting.public_month(session, slug, month)
 
 
 @router.get("/c/{slug}")

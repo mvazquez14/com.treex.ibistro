@@ -249,12 +249,13 @@ async def upsert_tenant_from_claims(
     )
     tenant = result.first()
     if tenant:
-        tenant.business_name = str(data["business_name"])
-        tenant.rfc = str(data["rfc"])
-        tenant.address = str(data["address"])
-        tenant.logo_url = (
-            data["logo_url"] if isinstance(data["logo_url"], str) else None
-        )
+        if not tenant.onboarding_completed:
+            tenant.business_name = str(data["business_name"])
+            tenant.rfc = str(data["rfc"])
+            tenant.address = str(data["address"])
+            tenant.logo_url = (
+                data["logo_url"] if isinstance(data["logo_url"], str) else None
+            )
         tenant.has_active_plan = bool(data["has_active_plan"])
         session.add(tenant)
         await session.commit()
@@ -277,13 +278,13 @@ async def upsert_tenant_from_claims(
     return tenant
 
 
-def nuna_login_redirect(return_to: str = "/dashboard/menu") -> str:
+def nuna_login_redirect(return_to: str = "/dashboard") -> str:
     from urllib.parse import urlencode
 
     query = urlencode(
         {
             "redirect_uri": settings.NUNA_REDIRECT_URI,
-            "return_to": return_to or "/dashboard/menu",
+            "return_to": return_to or "/dashboard",
             "app": settings.NUNA_CLIENT_ID,
         }
     )

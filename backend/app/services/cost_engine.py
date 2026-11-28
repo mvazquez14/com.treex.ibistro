@@ -1,6 +1,7 @@
 """Pure recipe costing. Callers load rows and pass them in; this module never touches a session."""
 
 import math
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
@@ -210,21 +211,28 @@ def _options_for_group(
 ) -> tuple[PackageOption, ...]:
     if group.is_fixed:
         return group.options
-    if len(selected_ids) != len(set(selected_ids)):
-        raise CostError("Hay opciones repetidas en el grupo")
     allowed = {option.recipe_id: option for option in group.options}
     chosen: list[PackageOption] = []
-    for recipe_id in selected_ids:
+    total = 0
+    for recipe_id, quantity in Counter(selected_ids).items():
         option = allowed.get(recipe_id)
         if option is None:
             raise CostError("La receta elegida no pertenece al grupo")
-        chosen.append(option)
-    count = len(chosen)
-    if count < group.min_choices or count > group.max_choices:
+        if quantity < 1:
+            continue
+        total += quantity
+        chosen.append(
+            PackageOption(
+                recipe_id=option.recipe_id,
+                portions_per_guest=option.portions_per_guest * quantity,
+                extra_price_per_guest=option.extra_price_per_guest * quantity,
+            )
+        )
+    if total < group.min_choices or total > group.max_choices:
         if group.min_choices == group.max_choices:
-            raise CostError(f"Elige {group.min_choices} opciones")
+            raise CostError(f"Elige {group.min_choices} porciones")
         raise CostError(
-            f"Elige entre {group.min_choices} y {group.max_choices} opciones"
+            f"Elige entre {group.min_choices} y {group.max_choices} porciones"
         )
     return tuple(chosen)
 

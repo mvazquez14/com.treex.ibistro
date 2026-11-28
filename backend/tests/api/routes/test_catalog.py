@@ -1,4 +1,5 @@
-import re
+from __future__ import annotations
+
 from decimal import Decimal
 from uuid import uuid4
 
@@ -13,87 +14,138 @@ def _login(client: TestClient) -> None:
     assert response.status_code == 302
 
 
-def test_dashboard_pages_are_spanish_for_an_active_plan(client: TestClient) -> None:
+def test_dashboard_proxy_uses_vite_when_configured(
+    client: TestClient, monkeypatch: object
+) -> None:
+    import httpx
+    from pytest import MonkeyPatch
+
+    from app.core.config import settings
+
+    patch: MonkeyPatch = monkeypatch  # type: ignore[assignment]
+
+    class Upstream:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        async def __aenter__(self) -> Upstream:
+            return self
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+        async def request(self, *_args: object, **_kwargs: object) -> httpx.Response:
+            return httpx.Response(
+                200,
+                content=b'<html lang="es"><title>iBistro</title></html>',
+                headers={"content-type": "text/html", "connection": "close"},
+            )
+
+    patch.setattr(settings, "VITE_DEV_SERVER", "http://127.0.0.1:5173")
+    patch.setattr("app.main.httpx.AsyncClient", Upstream)
+    proxied = client.get("/dashboard/menu/recipes")
+    assert proxied.status_code == 200
+    assert "iBistro" in proxied.text
+
+    class Down(Upstream):
+        async def request(self, *_args: object, **_kwargs: object) -> httpx.Response:
+            raise httpx.ConnectError("vite")
+
+    patch.setattr("app.main.httpx.AsyncClient", Down)
+    missing = client.get("/dashboard")
+    assert missing.status_code == 502
+    assert "Vite" in missing.text
+
+
+def test_dashboard_host_root_opens_the_panel(client: TestClient) -> None:
+    response = client.get("/")
+    assert response.status_code == 302
+    assert response.headers["location"] == "/dashboard"
+
+
+def test_dashboard_shell_is_spanish(client: TestClient) -> None:
     _login(client)
-    pages = {
-        "/dashboard/menu": "Costo por porción",
-        "/dashboard/warehouses": "Kardex",
-        "/dashboard/equipment": "Unidades",
-        "/dashboard/quotes": "Cotizaciones",
-        "/dashboard/reservations": "Saldo pendiente",
-        "/dashboard/pos": "Efectivo",
-        "/dashboard/reports": "Rentabilidad real",
-    }
-    for path, marker in pages.items():
+    for path in ("/dashboard", "/dashboard/menu/recipes"):
         response = client.get(path)
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
-        assert marker in response.text
         assert 'lang="es"' in response.text
+        assert "iBistro" in response.text
 
 
 def test_dashboard_recipe_and_purchase_round_trip(client: TestClient) -> None:
     _login(client)
     recipe = client.post(
-        "/dashboard/menu/recipes",
-        data={"name": "Tinga", "portion_size": "1", "portion_unit": "porción"},
+        "/api/v1/menu/recipes",
+        json={
+            "name": "Tinga",
+            "portion_size": 1,
+            "portion_unit": "porción",
+            "is_sub_recipe": False,
+        },
     )
-    assert recipe.status_code == 200
-    assert "Tinga" in recipe.text
-    assert "Costo por porción" in recipe.text
+    assert recipe.status_code == 201
+    assert recipe.json()["name"] == "Tinga"
+    assert Decimal(recipe.json()["cost_per_portion"]) == Decimal("0.00")
 
     warehouse = client.post(
-        "/dashboard/warehouses/sites",
-        data={"name": "Central", "is_primary": "true"},
+        "/api/v1/warehouses",
+        json={"name": "Central", "is_primary": True},
     )
-    assert warehouse.status_code == 200
-    assert "Central" in warehouse.text
+    assert warehouse.status_code == 201
+    assert warehouse.json()["name"] == "Central"
     ingredient = client.post(
-        "/dashboard/warehouses/ingredients",
-        data={
+        "/api/v1/warehouses/ingredients",
+        json={
             "name": "Pollo",
             "unit": "kg",
             "purchase_price": "80",
-            "waste_factor": "0.2",
-            "cooking_yield_factor": "0.8",
-            "min_stock": "0",
-            "max_stock": "10",
+            "waste_factor": 0.2,
+            "cooking_yield_factor": 0.8,
+            "min_stock": 0,
+            "max_stock": 10,
         },
     )
-    assert ingredient.status_code == 200
-    assert "Pollo" in ingredient.text
-
-    screen = client.get("/dashboard/warehouses")
-    warehouse_id = _option_value(screen.text, "warehouse_id")
-    ingredient_id = _option_value(screen.text, "ingredient_id")
+    assert ingredient.status_code == 201
+    assert ingredient.json()["name"] == "Pollo"
     movement = client.post(
-        "/dashboard/warehouses/movements",
-        data={
-            "warehouse_id": warehouse_id,
-            "ingredient_id": ingredient_id,
+        "/api/v1/warehouses/movements",
+        json={
+            "warehouse_id": warehouse.json()["id"],
+            "ingredient_id": ingredient.json()["id"],
             "movement_type": "PURCHASE_IN",
-            "quantity": "2",
+            "quantity": 2,
         },
     )
-    assert movement.status_code == 200
-    assert "Compra" in movement.text
-    assert "Disponible" in movement.text
+    assert movement.status_code == 201
+    assert movement.json()["movement_type"] == "PURCHASE_IN"
+    stock = client.get("/api/v1/warehouses/stock")
+    assert stock.status_code == 200
+    row = next(
+        item
+        for item in stock.json()
+        if item["ingredient_id"] == ingredient.json()["id"]
+    )
+    assert row["available_stock"] == 2
 
     asset = client.post(
-        "/dashboard/equipment/assets",
-        data={
+        "/api/v1/equipment/assets",
+        json={
             "name": "Chafer",
             "category": "Calentamiento",
-            "total_stock": "4",
+            "total_stock": 4,
             "rental_price_per_unit": "0",
             "replacement_cost": "800",
         },
     )
-    assert asset.status_code == 200
-    assert "Chafer" in asset.text
-    preview = client.get("/dashboard/equipment", params={"guests": 26})
+    assert asset.status_code == 201
+    assert asset.json()["name"] == "Chafer"
+    preview = client.get(
+        "/api/v1/equipment/preview",
+        params={"guests": 26, "guests_per_unit": 10},
+    )
     assert preview.status_code == 200
-    assert "unidades para" in preview.text or "Unidades" in preview.text
+    assert preview.json()["units"] == 3
 
 
 def test_tenant_cannot_read_or_change_another_tenants_recipe(
@@ -325,8 +377,8 @@ def test_api_and_dashboard_cover_catalog_writes(
     )
     assert (
         client.post(
-            "/dashboard/warehouses/suppliers",
-            data={"name": "Mal", "phone": "123"},
+            "/api/v1/warehouses/suppliers",
+            json={"name": "Mal", "phone": "123"},
         ).status_code
         == 422
     )
@@ -731,90 +783,145 @@ def test_api_and_dashboard_cover_catalog_writes(
         == 409
     )
 
-    page = client.post(
-        f"/dashboard/menu/recipes/{recipe['id']}",
-        data={"name": "Adobo de la casa", "portion_size": "2", "portion_unit": "kg"},
+    page = client.patch(
+        f"/api/v1/menu/recipes/{recipe['id']}",
+        json={"name": "Adobo de la casa", "portion_size": 2, "portion_unit": "kg"},
     )
     assert page.status_code == 200
-    assert "Adobo de la casa" in page.text
+    assert page.json()["name"] == "Adobo de la casa"
     item_id = with_line["items"][0]["id"]
-    assert (
-        client.post(f"/dashboard/menu/recipe-items/{item_id}/delete").status_code == 200
-    )
+    assert client.delete(f"/api/v1/menu/recipe-items/{item_id}").status_code == 204
     assert (
         client.post(
-            f"/dashboard/menu/recipes/{recipe['id']}/items",
-            data={
+            f"/api/v1/menu/recipes/{recipe['id']}/items",
+            json={
                 "ingredient_id": ingredient["id"],
-                "sub_recipe_id": "",
-                "net_qty_per_portion": "0.5",
+                "net_qty_per_portion": 0.5,
             },
         ).status_code
-        == 200
+        == 201
     )
     packaged = client.post(
-        "/dashboard/menu/packages",
-        data={
+        "/api/v1/menu/packages",
+        json={
             "name": "Paquete tablero",
             "category_id": str(category.id),
             "description": "En el jardín",
             "base_price_per_guest": "90",
-            "min_guests": "8",
-            "is_active": "true",
+            "min_guests": 8,
+            "is_active": True,
         },
     )
-    assert packaged.status_code == 200
-    assert "Paquete tablero" in packaged.text
-    client.post(
-        "/dashboard/menu/extras",
-        data={
+    assert packaged.status_code == 201
+    assert packaged.json()["name"] == "Paquete tablero"
+    extra = client.post(
+        "/api/v1/menu/extras",
+        json={
             "name": "Refresco",
             "unit_price": "18",
             "pricing_type": "PER_UNIT",
-            "ingredient_id": "",
-            "recipe_id": "",
-            "is_active": "true",
+            "is_active": True,
         },
     )
-    client.post(
-        "/dashboard/warehouses/suppliers",
-        data={
+    assert extra.status_code == 201
+    supplier_row = client.post(
+        "/api/v1/warehouses/suppliers",
+        json={
             "name": "Verduras del mercado",
             "phone": "+523333334444",
             "contact_name": "Ana",
         },
     )
-    client.post(
-        f"/dashboard/warehouses/sites/{primary['id']}",
-        data={
+    assert supplier_row.status_code == 201
+    updated_site = client.patch(
+        f"/api/v1/warehouses/{primary['id']}",
+        json={
             "name": "Central actualizada",
             "location_notes": "Planta baja",
-            "is_primary": "true",
+            "is_primary": True,
         },
     )
-    client.post(
-        f"/dashboard/warehouses/ingredients/{ingredient['id']}",
-        data={
+    assert updated_site.status_code == 200
+    updated_ingredient = client.patch(
+        f"/api/v1/warehouses/ingredients/{ingredient['id']}",
+        json={
             "name": "Chile guajillo",
             "unit": "kg",
             "purchase_price": "42",
-            "min_stock": "1",
-            "max_stock": "9",
-            "waste_factor": "0.1",
-            "cooking_yield_factor": "1",
+            "min_stock": 1,
+            "max_stock": 9,
+            "waste_factor": 0.1,
+            "cooking_yield_factor": 1,
             "supplier_id": supplier["id"],
         },
     )
-    client.post(
-        "/dashboard/equipment/assets",
-        data={
+    assert updated_ingredient.status_code == 200
+    chair = client.post(
+        "/api/v1/equipment/assets",
+        json={
             "name": "Silla",
             "category": "Mobiliario",
-            "total_stock": "40",
+            "total_stock": 40,
             "rental_price_per_unit": "3",
             "replacement_cost": "25",
         },
     )
+    assert chair.status_code == 201
+
+
+def test_menu_categories_and_photo_upload(
+    client: TestClient,
+    memory_db: MemorySession,
+    tmp_path: object,
+    monkeypatch: object,
+) -> None:
+    from pathlib import Path
+
+    from app.core.config import settings
+
+    uploads = Path(str(tmp_path))
+    monkeypatch.setattr(settings, "UPLOADS_DIR", str(uploads))  # type: ignore[attr-defined]
+    _login(client)
+    visible = ServiceCategory(name="Taquiza", slug="taquiza-foto", icon="")
+    hidden = ServiceCategory(name="Oculta", slug="oculta", icon="x", is_active=False)
+    memory_db.add(visible)
+    memory_db.add(hidden)
+    listed = client.get("/api/v1/menu/categories")
+    assert listed.status_code == 200
+    names = {row["name"] for row in listed.json()}
+    assert "Oculta" not in names
+    assert "Taquiza" in names
+
+    png = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+        b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDAT"
+        b"\x08\xd7c\xf8\xcf\xc0\x00\x00\x00\x03\x00\x01\x00\x05\xfe\x02\xfe"
+        b"\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+    stored = client.post(
+        "/api/v1/menu/photos",
+        files={"photo": ("logo.png", png, "image/png")},
+    )
+    assert stored.status_code == 201, stored.text
+    assert stored.json()["url"].endswith(".png")
+    rejected = client.post(
+        "/api/v1/menu/photos",
+        files={"photo": ("nota.txt", b"hola", "text/plain")},
+    )
+    assert rejected.status_code == 422
+    assert "PNG" in rejected.json()["detail"]
+    heavy = client.post(
+        "/api/v1/menu/photos",
+        files={
+            "photo": (
+                "grande.png",
+                png + b"\x00" * (5 * 1024 * 1024),
+                "image/png",
+            )
+        },
+    )
+    assert heavy.status_code == 422
+    assert "5 MB" in heavy.json()["detail"]
 
 
 def _expect(response: object, status: int) -> dict[str, object]:
@@ -826,14 +933,3 @@ def _expect(response: object, status: int) -> dict[str, object]:
     body = response.json()  # type: ignore[attr-defined]
     assert isinstance(body, dict)
     return body
-
-
-def _option_value(html: str, select_name: str) -> str:
-    marker = f'name="{select_name}"'
-    start = html.find(marker)
-    assert start != -1
-    chunk = html[start : start + 1200]
-    for value in re.findall(r'value="([^"]*)"', chunk):
-        if value:
-            return value
-    raise AssertionError(select_name)

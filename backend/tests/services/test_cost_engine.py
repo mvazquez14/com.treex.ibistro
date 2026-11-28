@@ -104,12 +104,12 @@ def test_protein_group_rejects_two_or_four_choices() -> None:
         "recipes": {recipe.id: recipe for recipe in recipes},
         "ingredients": {ingredient.id: ingredient for ingredient in proteins},
     }
-    with pytest.raises(CostError, match="3 opciones"):
+    with pytest.raises(CostError, match="3 porciones"):
         quote_package(
             selected_options={group.id: [recipe.id for recipe in recipes[:2]]},
             **common,
         )
-    with pytest.raises(CostError, match="3 opciones"):
+    with pytest.raises(CostError, match="3 porciones"):
         quote_package(
             selected_options={group.id: [recipe.id for recipe in recipes[:4]]},
             **common,
@@ -203,12 +203,22 @@ def test_cost_engine_rejects_invalid_inputs() -> None:
             recipes=recipes,
             ingredients=ingredients,
         )
-    with pytest.raises(CostError, match="repetidas"):
+    doubled = quote_package(
+        guest_count=1,
+        base_price_per_guest=Decimal("10"),
+        groups=[group],
+        selected_options={group.id: [recipe.id, recipe.id]},
+        recipes=recipes,
+        ingredients=ingredients,
+    )
+    assert doubled.price == Decimal("10.00")
+    assert doubled.explosion[0].net_qty == 2
+    with pytest.raises(CostError, match="entre 1 y 2"):
         quote_package(
             guest_count=1,
             base_price_per_guest=Decimal("10"),
             groups=[group],
-            selected_options={group.id: [recipe.id, recipe.id]},
+            selected_options={group.id: [recipe.id, recipe.id, recipe.id]},
             recipes=recipes,
             ingredients=ingredients,
         )

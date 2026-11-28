@@ -8,6 +8,8 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.models.enums import OperationStatus, PaymentMethod, PaymentStatus
+from app.schemas.catalog import QuoteExtraIn
+from app.schemas.quotes import QuoteChoice, QuoteExtraPick
 
 METHOD_LABELS: dict[PaymentMethod, str] = {
     PaymentMethod.CASH: "Efectivo",
@@ -43,6 +45,11 @@ class ReceiptRead(BaseModel):
     is_verified: bool
 
 
+class ServiceLine(BaseModel):
+    name: str
+    quantity: str
+
+
 class ReservationCard(BaseModel):
     id: UUID
     customer_name: str
@@ -50,6 +57,8 @@ class ReservationCard(BaseModel):
     venue_address: str
     event_date: date
     slot_label: str
+    start_time: str = ""
+    end_time: str = ""
     guest_count: int
     total_amount: Decimal
     paid_amount: Decimal
@@ -60,6 +69,41 @@ class ReservationCard(BaseModel):
     operation_label: str
     special_requests: str | None
     receipts: list[ReceiptRead]
+
+
+class ChangeLogEntry(BaseModel):
+    at: str
+    reason: str = ""
+    before: dict[str, str] = Field(default_factory=dict)
+    after: dict[str, str] = Field(default_factory=dict)
+
+
+class ReservationEditIn(BaseModel):
+    event_date: date | None = None
+    slot_id: UUID | None = None
+    start_time: str | None = None
+    package_id: UUID | None = None
+    guest_count: int | None = Field(default=None, ge=1)
+    selected_options: dict[UUID, list[UUID]] | None = None
+    extras: list[QuoteExtraIn] | None = None
+    manual_total: Decimal | None = None
+    reason: str | None = None
+
+
+class ReservationDetail(ReservationCard):
+    folio: str = ""
+    email: str | None = None
+    whatsapp_phone: str = ""
+    whatsapp_url: str = ""
+    travel_buffer_minutes: int = 0
+    package_id: UUID | None = None
+    slot_id: UUID | None = None
+    package_name: str = ""
+    variants: list[ServiceLine] = Field(default_factory=list)
+    extras: list[ServiceLine] = Field(default_factory=list)
+    choices: list[QuoteChoice] = Field(default_factory=list)
+    extra_picks: list[QuoteExtraPick] = Field(default_factory=list)
+    change_log: list[ChangeLogEntry] = Field(default_factory=list)
 
 
 class ReservationsScreen(BaseModel):

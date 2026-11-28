@@ -6,7 +6,7 @@
 <input type="hidden" name="event_date" value="{{ event_date }}">
 {% for slot in slots %}
 <label class="mt-2 flex items-center gap-2 text-sm">
-  <input class="h-4 w-4" type="radio" name="slot_id" value="{{ slot.id }}" required>
+  <input class="h-4 w-4" type="radio" name="booking" value="{{ slot.id }}|{{ slot.start_time }}" required>
   <span>{{ slot.label }} · {{ slot.remaining }} {% if slot.remaining == 1 %}lugar{% else %}lugares{% endif %}</span>
 </label>
 {% endfor %}

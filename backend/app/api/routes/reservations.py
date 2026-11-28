@@ -5,7 +5,13 @@ from uuid import UUID
 from fastapi import APIRouter
 
 from app.api.deps import CurrentActiveTenant, SessionDep
-from app.schemas.operations import ReceiptIn, ReservationCard, ReservationsScreen
+from app.schemas.operations import (
+    ReceiptIn,
+    ReservationCard,
+    ReservationDetail,
+    ReservationEditIn,
+    ReservationsScreen,
+)
 from app.services import reservations
 
 router = APIRouter(prefix="/reservations", tags=["reservations"])
@@ -16,6 +22,25 @@ async def list_reservations(
     session: SessionDep, tenant: CurrentActiveTenant
 ) -> ReservationsScreen:
     return await reservations.reservations_screen(session, tenant.id)
+
+
+@router.get("/{reservation_id}", response_model=ReservationDetail)
+async def get_reservation(
+    session: SessionDep, tenant: CurrentActiveTenant, reservation_id: UUID
+) -> ReservationDetail:
+    return await reservations.reservation_detail(session, tenant.id, reservation_id)
+
+
+@router.patch("/{reservation_id}", response_model=ReservationDetail)
+async def reschedule_reservation(
+    session: SessionDep,
+    tenant: CurrentActiveTenant,
+    reservation_id: UUID,
+    data: ReservationEditIn,
+) -> ReservationDetail:
+    updated = await reservations.update_reservation(session, tenant, reservation_id, data)
+    await session.commit()
+    return updated
 
 
 @router.post("/{reservation_id}/receipts", response_model=ReservationCard)

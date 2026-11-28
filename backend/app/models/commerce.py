@@ -1,9 +1,9 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Column, Date, Integer
+from sqlalchemy import Column, Date, Integer, Time
 from sqlmodel import Field, SQLModel
 
 from app.models.columns import (
@@ -58,6 +58,8 @@ class Quote(SQLModel, table=True):
         sa_column=fk("delivery_zone.id", nullable=True, ondelete="SET NULL"),
     )
     event_date: date = Field(sa_column=Column(Date, nullable=False))
+    event_start: time | None = Field(default=None, sa_column=Column(Time, nullable=True))
+    end_time: time | None = Field(default=None, sa_column=Column(Time, nullable=True))
     slot_id: uuid.UUID = Field(sa_column=fk("service_schedule_slot.id"))
     venue_address: str = Field(max_length=500)
     guest_count: int = Field(sa_column=Column(Integer, nullable=False))
@@ -97,12 +99,14 @@ class Reservation(SQLModel, table=True):
     tenant_id: uuid.UUID = Field(sa_column=fk("tenant.id"))
     quote_id: uuid.UUID | None = Field(
         default=None,
-        sa_column=fk("quote.id", nullable=True, unique=True, ondelete="SET NULL"),
+        sa_column=fk("quote.id", nullable=True, ondelete="SET NULL"),
     )
     customer_name: str = Field(max_length=255)
     customer_phone: str = Field(max_length=20)
     venue_address: str = Field(max_length=500)
     event_date: date = Field(sa_column=Column(Date, nullable=False, index=True))
+    event_start: time | None = Field(default=None, sa_column=Column(Time, nullable=True))
+    end_time: time | None = Field(default=None, sa_column=Column(Time, nullable=True))
     slot_id: uuid.UUID = Field(sa_column=fk("service_schedule_slot.id"))
     guest_count: int = Field(sa_column=Column(Integer, nullable=False))
     total_amount: Decimal = Field(sa_column=money_column())
@@ -117,6 +121,10 @@ class Reservation(SQLModel, table=True):
     )
     special_requests: str | None = Field(
         default=None, sa_column=text_column(nullable=True)
+    )
+    change_log: list[Any] = Field(
+        default_factory=list,
+        sa_column=jsonb_column("'[]'::jsonb"),
     )
     created_at: datetime = Field(default_factory=utcnow, sa_column=created_at_column())
 

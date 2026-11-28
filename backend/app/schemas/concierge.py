@@ -51,6 +51,7 @@ class ConciergeQuoteIn(BaseModel):
     package_id: UUID
     event_date: date
     slot_id: UUID
+    start_time: str | None = None
     guest_count: int = Field(ge=1)
     full_name: str
     phone: str

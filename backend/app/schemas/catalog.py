@@ -22,7 +22,18 @@ class RecipeItemRead(BaseModel):
     ingredient_id: UUID | None
     sub_recipe_id: UUID | None
     label: str
+    unit: str | None = None
     net_qty_per_portion: float
+    gross_qty: float | None = None
+
+
+class RecipePreview(BaseModel):
+    cost_per_portion: Decimal | None
+    cost_note: str | None = None
+
+
+class RecipePreviewIn(BaseModel):
+    items: list[RecipeItemIn] = Field(default_factory=list)
 
 
 class RecipeIn(BaseModel):
@@ -127,6 +138,7 @@ class ExtraIn(BaseModel):
     unit_price: Decimal
     pricing_type: PricingType
     is_active: bool = True
+    category_ids: list[UUID] = Field(default_factory=list)
 
 
 class ExtraUpdate(BaseModel):
@@ -138,6 +150,7 @@ class ExtraUpdate(BaseModel):
     is_active: bool | None = None
     clear_ingredient: bool = False
     clear_recipe: bool = False
+    category_ids: list[UUID] | None = None
 
 
 class ExtraRead(BaseModel):
@@ -149,6 +162,8 @@ class ExtraRead(BaseModel):
     unit_price: Decimal
     pricing_type: PricingType
     is_active: bool
+    category_ids: list[UUID] = Field(default_factory=list)
+    category_names: list[str] = Field(default_factory=list)
 
 
 class QuoteExtraIn(BaseModel):
@@ -181,6 +196,10 @@ class CategoryRead(BaseModel):
     id: UUID
     name: str
     slug: str
+
+
+class MenuPhotoRead(BaseModel):
+    url: str
 
 
 class MenuScreen(BaseModel):

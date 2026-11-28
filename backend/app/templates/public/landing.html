@@ -1,34 +1,193 @@
 {% extends "public/layout.html" %}
 {% block title %}{{ page.business_name }}{% endblock %}
 {% block content %}
-<article class="space-y-8">
-  <header class="card rounded-xl border border-zinc-800 p-6">
+<script>
+  function clockLabel(value) {
+    const parts = String(value || "").split(":")
+    const hour = Number(parts[0] || 0)
+    const minute = parts[1] || "00"
+    const suffix = hour >= 12 ? "PM" : "AM"
+    const shown = hour % 12 || 12
+    return shown + ":" + minute + " " + suffix
+  }
+  function plusMinutes(value, minutes) {
+    const parts = String(value || "00:00").split(":")
+    const total = Number(parts[0]) * 60 + Number(parts[1]) + Number(minutes || 0)
+    const hour = Math.floor((total % (24 * 60)) / 60)
+    const minute = total % 60
+    return String(hour).padStart(2, "0") + ":" + String(minute).padStart(2, "0")
+  }
+  function durationText(minutes) {
+    const hours = Math.floor(minutes / 60)
+    const rest = minutes % 60
+    if (rest === 0) return hours === 1 ? "1 hora" : hours + " horas"
+    if (hours === 0) return rest + " minutos"
+    return hours + " h " + rest + " min"
+  }
+  function quoteWizard(config) {
+    return {
+      step: 1,
+      slug: config.slug,
+      duration: config.duration,
+      minGuests: config.minGuests,
+      maxGuests: config.maxGuests,
+      showPrices: config.showPrices,
+      month: "",
+      days: [],
+      eventDate: "",
+      booking: "",
+      selectedTime: "",
+      categoryId: "",
+      categoryName: "",
+      packageId: "",
+      packageName: "",
+      packagePrice: 0,
+      guests: config.minGuests,
+      counts: {},
+      extraQty: {},
+      phone: "",
+      block: "",
+      init() {
+        const now = new Date()
+        this.loadMonth(now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0"))
+      },
+      async loadMonth(month) {
+        this.month = month
+        const response = await fetch(config.availability + "?month=" + month)
+        if (!response.ok) return
+        const body = await response.json()
+        this.days = body.days || []
+        if (body.service_duration_minutes) this.duration = body.service_duration_minutes
+      },
+      shiftMonth(delta) {
+        const parts = this.month.split("-").map(Number)
+        const next = new Date(parts[0], parts[1] - 1 + delta, 1)
+        this.loadMonth(next.getFullYear() + "-" + String(next.getMonth() + 1).padStart(2, "0"))
+      },
+      monthLabel() {
+        const names = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+        const parts = this.month.split("-").map(Number)
+        return names[parts[1] - 1] + " " + parts[0]
+      },
+      cells() {
+        const blanks = this.days.length ? this.days[0].weekday : 0
+        return Array(blanks).fill(null).concat(this.days)
+      },
+      selectedDay() {
+        return this.days.find((day) => day.date === this.eventDate) || null
+      },
+      pickDay(day) {
+        if (!day || day.status !== "available") return
+        this.eventDate = day.date
+        this.booking = ""
+        this.selectedTime = ""
+      },
+      pickSlot(slotId, start) {
+        this.booking = slotId + "|" + start
+        this.selectedTime = start
+      },
+      chosenStart() {
+        return this.booking.split("|")[1] || ""
+      },
+      pickCategory(id, name) {
+        if (this.categoryId !== id) {
+          this.packageId = ""
+          this.packageName = ""
+          this.packagePrice = 0
+          this.counts = {}
+          this.extraQty = {}
+        }
+        this.categoryId = id
+        this.categoryName = name
+      },
+      pickPackage(id, name, price) {
+        if (this.packageId !== id) this.counts = {}
+        this.packageId = id
+        this.packageName = name
+        this.packagePrice = Number(price || 0)
+      },
+      qty(group, recipe) {
+        return (this.counts[group] && this.counts[group][recipe]) || 0
+      },
+      groupCount(group) {
+        const rows = this.counts[group] || {}
+        return Object.values(rows).reduce((sum, value) => sum + Number(value), 0)
+      },
+      bump(group, recipe, delta, max) {
+        const current = this.qty(group, recipe)
+        const next = current + delta
+        if (next < 0) return
+        if (this.groupCount(group) - current + next > max) return
+        if (!this.counts[group]) this.counts[group] = {}
+        this.counts[group][recipe] = next
+      },
+      extraAmount(id) {
+        return Number(this.extraQty[id] || 0)
+      },
+      extraVisible(categories) {
+        if (!this.categoryId) return false
+        if (!categories) return true
+        return categories.split(",").includes(this.categoryId)
+      },
+      packageReady() {
+        if (!this.packageId) return false
+        if (this.guests < this.minGuests || this.guests > this.maxGuests) return false
+        const card = document.querySelector('[data-package="' + this.packageId + '"]')
+        if (!card) return false
+        return ![...card.querySelectorAll("[data-min]")].some((node) => this.groupCount(node.dataset.group) < Number(node.dataset.min))
+      },
+      estimate() {
+        if (!this.showPrices || !this.packageId) return 0
+        let total = this.packagePrice * Number(this.guests || 0)
+        document.querySelectorAll("[data-extra]").forEach((node) => {
+          const qty = this.extraAmount(node.dataset.extra)
+          if (qty <= 0 || !this.extraVisible(node.dataset.categories || "")) return
+          const price = Number(node.dataset.price || 0)
+          total += node.dataset.pricing === "PER_GUEST" ? price * qty * Number(this.guests) : price * qty
+        })
+        document.querySelectorAll("[data-variant-price]").forEach((node) => {
+          if (node.dataset.package !== this.packageId) return
+          const copies = this.qty(node.dataset.group, node.dataset.recipe)
+          total += Number(node.dataset.variantPrice || 0) * copies * Number(this.guests)
+        })
+        return total
+      },
+      money(value) {
+        return Number(value || 0).toLocaleString("es-MX", { style: "currency", currency: "MXN" })
+      },
+      guard(event) {
+        this.block = ""
+        if (!this.eventDate || !this.booking) this.block = "Elige fecha y horario"
+        else if (!this.categoryId) this.block = "Elige una categoría"
+        else if (!this.packageReady()) this.block = "Completa el paquete, los invitados y las porciones"
+        if (this.block) event.preventDefault()
+      },
+    }
+  }
+</script>
+<article class="space-y-8" x-data="quoteWizard({ slug: '{{ page.slug }}', availability: '/c/{{ page.slug }}/availability', duration: {{ page.service_duration_minutes }}, minGuests: {{ page.min_guests }}, maxGuests: {{ page.max_guests }}, showPrices: {{ 'true' if page.show_prices else 'false' }} })" x-cloak>
+  <header class="card rounded-2xl border border-zinc-800/80 p-6">
     {% if page.logo_url %}
-    <img class="mb-4 h-16 w-16 rounded-lg object-cover" src="{{ page.logo_url }}" alt="{{ page.business_name }}">
+    <img class="mb-4 h-16 w-16 rounded-xl object-cover" src="{{ page.logo_url }}" alt="{{ page.business_name }}">
     {% endif %}
-    <h1 class="text-3xl font-semibold">{{ page.business_name }}</h1>
-    {% if page.address %}<p class="mt-2 text-sm text-zinc-400">{{ page.address }}</p>{% endif %}
-    {% if page.categories or page.tags %}
-    <ul class="mt-4 flex flex-wrap gap-2 text-sm">
-      {% for category in page.categories %}
-      <li class="rounded-full border border-zinc-700 px-3 py-1">{{ category.name }}</li>
-      {% endfor %}
-      {% for tag in page.tags %}
-      <li class="rounded-full border border-zinc-700 px-3 py-1">{{ tag }}</li>
-      {% endfor %}
-    </ul>
+    <h1 class="text-2xl font-bold tracking-tight text-white sm:text-3xl">{{ page.business_name }}</h1>
+    {% if page.address %}<p class="mt-2 text-base text-zinc-400">{{ page.address }}</p>{% endif %}
+    {% if page.tags %}
+    <p class="mt-3 flex flex-wrap gap-2 text-sm text-zinc-300">
+      {% for tag in page.tags %}<span class="rounded-full border border-zinc-700 px-3 py-1">{{ tag }}</span>{% endfor %}
+    </p>
     {% endif %}
     {% if page.concierge_url %}
-    <a class="primary mt-5 inline-block rounded-lg px-4 py-2" href="{{ page.concierge_url }}">Cotizar por WhatsApp</a>
+    <a class="primary mt-5 inline-block rounded-xl px-4 py-2" href="{{ page.concierge_url }}">Cotizar por WhatsApp</a>
     {% endif %}
   </header>
 
   {% if page.photos %}
   <section>
-    <h2 class="text-lg font-medium">Galería</h2>
+    <h2 class="text-lg font-semibold text-white">Galería</h2>
     <div class="mt-3 grid gap-3 sm:grid-cols-2">
       {% for photo in page.photos %}
-      <figure class="card overflow-hidden rounded-xl border border-zinc-800">
+      <figure class="card overflow-hidden rounded-2xl border border-zinc-800/80">
         <img src="{{ photo.image_url }}" alt="{{ photo.caption or page.business_name }}">
         {% if photo.caption %}<figcaption class="px-3 py-2 text-sm text-zinc-300">{{ photo.caption }}</figcaption>{% endif %}
       </figure>
@@ -37,122 +196,193 @@
   </section>
   {% endif %}
 
-  {% if page.schedule %}
-  <section class="card rounded-xl border border-zinc-800 p-5">
-    <h2 class="text-lg font-medium">Horarios de atención</h2>
-    <ul class="mt-3 space-y-1 text-sm text-zinc-300">
-      {% for slot in page.schedule %}
-      <li>{{ slot.day_name }} {{ slot.label }}</li>
-      {% endfor %}
-    </ul>
-  </section>
-  {% endif %}
-
   {% if not page.available %}
-  <p class="card rounded-xl border border-zinc-800 p-5" role="alert">Proveedor no disponible temporalmente</p>
+  <p class="card rounded-2xl border border-zinc-800 p-5" role="alert">Proveedor no disponible temporalmente</p>
   {% elif not page.packages %}
-  <p class="text-sm text-zinc-400">Este proveedor aún no publica paquetes.</p>
+  <p class="text-base text-zinc-400">Este proveedor aún no publica paquetes.</p>
   {% else %}
-  <form id="quote-form" class="card space-y-6 rounded-xl border border-zinc-800 p-6" method="post" action="/c/{{ page.slug }}/quotes" x-data="{ step: 1, category: '' }">
-    <p class="text-sm text-zinc-400">Paso <span x-text="step"></span> de 4</p>
-
-    <section x-show="step === 1" class="space-y-3">
-      <h2 class="text-lg font-medium">1. Categoría de servicio</h2>
-      <div class="flex flex-wrap gap-2">
-        {% for category in page.categories %}
-        <button class="rounded-full border border-zinc-700 px-3 py-1 text-sm hover:border-[#FFC72C]" type="button" @click="category = '{{ category.id }}'; step = 2">{{ category.name }}</button>
-        {% endfor %}
+  <form id="quote-form" class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]" method="post" action="/c/{{ page.slug }}/quotes" @submit="guard">
+    <div class="card space-y-6 rounded-2xl border border-zinc-800/80 p-6">
+      <div>
+        <p class="text-sm text-zinc-400">Paso <span x-text="step"></span> de 4</p>
+        <div class="mt-3 grid grid-cols-4 gap-2 text-sm">
+          <span :class="step >= 1 ? 'text-[#FACC15]' : 'text-zinc-500'">Fecha</span>
+          <span :class="step >= 2 ? 'text-[#FACC15]' : 'text-zinc-500'">Categoría</span>
+          <span :class="step >= 3 ? 'text-[#FACC15]' : 'text-zinc-500'">Paquete</span>
+          <span :class="step >= 4 ? 'text-[#FACC15]' : 'text-zinc-500'">Datos</span>
+        </div>
+        <div class="mt-2 h-1 rounded-full bg-zinc-800">
+          <div class="h-1 rounded-full bg-[#FACC15]" :style="'width:' + (step * 25) + '%'"></div>
+        </div>
       </div>
-    </section>
 
-    <section x-show="step === 2" class="space-y-4">
-      <h2 class="text-lg font-medium">2. Invitados, paquete y extras</h2>
-      <label class="text-sm text-zinc-300">Invitados
-        <input name="guest_count" type="number" min="{{ page.min_guests }}" max="{{ page.max_guests }}" value="{{ page.min_guests }}" required>
-      </label>
-      {% for package in page.packages %}
-      <article class="rounded-lg border border-zinc-800 p-4" x-show="category === '' || category === '{{ package.category_id }}'">
-        <label class="flex items-start gap-2">
-          <input class="mt-1 h-4 w-4" type="radio" name="package_id" value="{{ package.id }}" required>
-          <span>
-            <span class="font-medium">{{ package.name }}</span>
-            <span class="block text-sm text-zinc-400">{{ package.category_name }} · mínimo {{ package.min_guests }}</span>
-            {% if page.show_prices %}<span class="block text-sm text-[#FFC72C]">{{ package.base_price_per_guest | pesos }} por invitado</span>{% endif %}
-          </span>
-        </label>
-        {% if package.description %}<p class="mt-2 text-sm text-zinc-400">{{ package.description }}</p>{% endif %}
-        {% for group in package.groups %}
-          {% if group.is_fixed %}
-          <p class="mt-3 text-sm">Incluido: {{ group.group_name }}</p>
-          <ul class="text-sm text-zinc-300">
-            {% for option in group.options %}<li>{{ option.recipe_name }}</li>{% endfor %}
-          </ul>
-          {% else %}
-          <fieldset class="mt-3 space-y-1">
-            <legend class="text-sm">{{ group.group_name }} · elige de {{ group.min_choices }} a {{ group.max_choices }}</legend>
-            {% for option in group.options %}
-            <label class="flex items-center gap-2 text-sm">
-              <input class="h-4 w-4" type="checkbox" name="choice" value="{{ group.id }}:{{ option.recipe_id }}">
-              {{ option.recipe_name }}
-              {% if page.show_prices and option.extra_price_per_guest > 0 %}
-              <span class="text-[#FFC72C]">+ {{ option.extra_price_per_guest | pesos }}</span>
-              {% endif %}
-            </label>
-            {% endfor %}
-          </fieldset>
-          {% endif %}
-        {% endfor %}
-      </article>
-      {% endfor %}
-      {% if page.extras %}
-      <div class="space-y-2">
-        <h3 class="text-sm font-medium">Extras</h3>
-        {% for extra in page.extras %}
-        <label class="flex items-center gap-2 text-sm">
-          <input class="h-4 w-4" type="checkbox" name="extra" value="{{ extra.id }}">
-          {{ extra.name }}
-          {% if page.show_prices %}<span class="text-[#FFC72C]">{{ extra.unit_price | pesos }}</span>{% endif %}
-          <input class="max-w-24" name="extra_qty_{{ extra.id }}" type="number" min="0.01" step="0.01" value="1">
-        </label>
-        {% endfor %}
-      </div>
-      {% endif %}
-      <button class="text-sm text-[#FFC72C]" type="button" @click="step = 3">Continuar</button>
-    </section>
+      <section x-show="step === 1" class="space-y-4">
+        <h2 class="text-lg font-semibold text-white">1. Fecha y hora del evento</h2>
+        <div class="flex items-center justify-between">
+          <button class="rounded-full border border-zinc-700 px-3 py-1 text-sm" type="button" @click="shiftMonth(-1)">Anterior</button>
+          <p class="text-base font-semibold capitalize" x-text="monthLabel()"></p>
+          <button class="rounded-full border border-zinc-700 px-3 py-1 text-sm" type="button" @click="shiftMonth(1)">Siguiente</button>
+        </div>
+        <div class="grid grid-cols-7 gap-1 text-center text-sm text-zinc-500">
+          <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+        </div>
+        <div class="grid grid-cols-7 gap-1">
+          <template x-for="(cell, index) in cells()" :key="index">
+            <button type="button" class="rounded-xl border px-1 py-2 text-sm" :disabled="!cell || cell.status !== 'available'" :class="!cell ? 'border-transparent' : (eventDate === cell.date ? 'border-[#FACC15] text-white' : (cell.status === 'available' ? 'border-zinc-800 text-white' : 'border-zinc-900 text-zinc-600 line-through'))" @click="pickDay(cell)">
+              <span x-text="cell ? Number(cell.date.slice(-2)) : ''"></span>
+              <span class="mx-auto mt-1 block h-1.5 w-1.5 rounded-full" :class="cell && cell.status === 'available' ? 'bg-emerald-400' : 'bg-transparent'"></span>
+            </button>
+          </template>
+        </div>
+        <p class="text-sm text-zinc-400"><span class="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-400"></span>Disponible · <span class="line-through text-zinc-500">Fecha completa o cerrada</span></p>
+        <div class="flex flex-wrap gap-2" x-show="selectedDay()">
+          <template x-for="item in (selectedDay() ? selectedDay().bookings : [])" :key="item.slot_id + item.start">
+            <button type="button" class="rounded-full border px-4 py-2 text-base" :class="booking === item.slot_id + '|' + item.start ? 'border-[#FACC15] bg-[#FACC15] font-semibold text-[#09090B]' : 'border-zinc-700 text-white'" @click="pickSlot(item.slot_id, item.start)">
+              <span x-text="clockLabel(item.start)"></span>
+            </button>
+          </template>
+        </div>
+        <p class="text-base text-zinc-300" x-show="chosenStart()" x-text="'Servicio en sitio de ' + durationText(duration) + ': de ' + clockLabel(chosenStart()) + ' a ' + clockLabel(plusMinutes(chosenStart(), duration))"></p>
+        <button class="primary rounded-xl px-5 py-2 disabled:cursor-not-allowed" type="button" :disabled="!eventDate || !booking" @click="step = 2">Continuar</button>
+      </section>
 
-    <section x-show="step === 3" class="space-y-3">
-      <h2 class="text-lg font-medium">3. Datos del evento</h2>
-      <label class="text-sm text-zinc-300">Nombre<input name="full_name" required></label>
-      <label class="text-sm text-zinc-300">Teléfono<input name="phone" placeholder="+523312345678" required></label>
-      <label class="text-sm text-zinc-300">WhatsApp<input name="whatsapp_phone" placeholder="+523312345678" required></label>
-      <label class="text-sm text-zinc-300">Correo<input name="email" type="email"></label>
-      <label class="text-sm text-zinc-300">Dirección del evento<input name="venue_address" required></label>
-      <label class="text-sm text-zinc-300">Peticiones especiales<textarea name="special_requests" rows="3"></textarea></label>
-      {% if page.zones %}
-      <label class="text-sm text-zinc-300">Zona de entrega
-        <select name="delivery_zone_id">
-          <option value="">Sin zona</option>
-          {% for zone in page.zones %}
-          <option value="{{ zone.id }}">{{ zone.zone_name }}{% if page.show_prices %} · {{ zone.freight_cost | pesos }}{% endif %}</option>
+      <section x-show="step === 2" class="space-y-4">
+        <h2 class="text-lg font-semibold text-white">2. Categoría</h2>
+        <div class="grid gap-3 sm:grid-cols-2">
+          {% for category in page.categories %}
+          {% set package_count = page.packages | selectattr('category_id', 'equalto', category.id) | list | length %}
+          <button type="button" class="rounded-2xl border bg-zinc-900/80 p-5 text-left" :class="categoryId === '{{ category.id }}' ? 'border-[#FACC15]' : 'border-zinc-800'" @click='pickCategory("{{ category.id }}", {{ category.name | tojson }})'>
+            <span class="text-2xl">{{ category.icon or "🍽" }}</span>
+            <span class="mt-2 block text-lg font-semibold text-white">{{ category.name }}</span>
+            <span class="mt-1 block text-sm text-zinc-400">{{ package_count }} paquetes</span>
+          </button>
           {% endfor %}
-        </select>
-      </label>
-      {% endif %}
-      <button class="text-sm text-[#FFC72C]" type="button" @click="step = 4">Continuar</button>
-    </section>
+        </div>
+        <button class="primary rounded-xl px-5 py-2" type="button" :disabled="!categoryId" @click="step = 3">Continuar</button>
+      </section>
 
-    <section x-show="step === 4" class="space-y-3">
-      <h2 class="text-lg font-medium">4. Fecha y desglose</h2>
-      <div class="flex flex-wrap gap-2">
-        {% for day in page.days %}
-        <button class="rounded-lg border border-zinc-700 px-3 py-1 text-sm hover:border-[#FFC72C]" type="button" hx-get="/api/v1/public/{{ page.slug }}/slots?date={{ day.iso }}" hx-target="#slots" hx-swap="innerHTML">{{ day.label }}</button>
+      <section x-show="step === 3" class="space-y-5">
+        <h2 class="text-lg font-semibold text-white">3. Paquete, variantes y extras</h2>
+        {% for package in page.packages %}
+        {% set choice_groups = package.groups | rejectattr("is_fixed") | list %}
+        <article class="rounded-2xl border border-zinc-800 p-4" data-package="{{ package.id }}" x-show="categoryId === '{{ package.category_id }}'" :class="packageId === '{{ package.id }}' ? 'border-[#FACC15]' : 'border-zinc-800'">
+          {% if package.photo_url %}
+          <img class="mb-3 aspect-video w-full rounded-xl object-cover" src="{{ package.photo_url }}" alt="{{ package.name }}">
+          {% else %}
+          <div class="mb-3 grid aspect-video w-full place-items-center rounded-xl bg-zinc-900 text-2xl text-zinc-500" aria-hidden="true">🍽</div>
+          {% endif %}
+          <div class="text-left">
+            <span class="text-lg font-semibold text-white">{{ package.name }}</span>
+            <span class="block text-sm text-zinc-400">{{ package.category_name }} · mínimo {{ package.min_guests }}</span>
+            {% if page.show_prices %}<span class="block text-base text-[#FACC15]">{{ package.base_price_per_guest | pesos }} por persona</span>{% endif %}
+          </div>
+          {% if package.description %}<p class="mt-2 text-sm text-zinc-400">{{ package.description }}</p>{% endif %}
+          <div class="mt-4 flex justify-end">
+            <button type="button" class="rounded-xl px-4 py-2 text-sm font-semibold" :class="packageId === '{{ package.id }}' ? 'bg-[#FACC15] text-[#060604]' : 'border border-zinc-700 text-white'" @click='pickPackage("{{ package.id }}", {{ package.name | tojson }}, "{{ package.base_price_per_guest }}")'>
+              <span x-show="packageId !== '{{ package.id }}'">Seleccionar servicio</span>
+              <span x-show="packageId === '{{ package.id }}'">Seleccionado ✓</span>
+            </button>
+          </div>
+          {% if choice_groups %}
+          <div x-show="packageId === '{{ package.id }}'" x-transition>
+            {% for group in choice_groups %}
+              <fieldset class="mt-4 space-y-2" data-min="{{ group.min_choices }}" data-group="{{ group.id }}" data-name="{{ group.group_name }}">
+                <legend class="text-base text-white">{{ group.group_name }} — elige {{ group.max_choices }} · Seleccionados: <span x-text="groupCount('{{ group.id }}')">0</span> / {{ group.max_choices }}</legend>
+                {% for option in group.options %}
+                <div class="flex items-center gap-2 text-base" data-package="{{ package.id }}" data-group="{{ group.id }}" data-recipe="{{ option.recipe_id }}" data-variant-price="{{ option.extra_price_per_guest }}">
+                  <button class="h-9 w-9 rounded-full border border-zinc-700" type="button" @click="bump('{{ group.id }}', '{{ option.recipe_id }}', -1, {{ group.max_choices }})">-</button>
+                  <span class="w-6 text-center tabular-nums" x-text="qty('{{ group.id }}', '{{ option.recipe_id }}')">0</span>
+                  <button class="h-9 w-9 rounded-full border border-zinc-700" type="button" @click="bump('{{ group.id }}', '{{ option.recipe_id }}', 1, {{ group.max_choices }})" :disabled="groupCount('{{ group.id }}') >= {{ group.max_choices }}">+</button>
+                  <span>{{ option.recipe_name }}</span>
+                  {% if page.show_prices and option.extra_price_per_guest > 0 %}<span class="text-[#FACC15]">+ {{ option.extra_price_per_guest | pesos }}</span>{% endif %}
+                  <input type="hidden" name="choice" :disabled="packageId !== '{{ package.id }}' || qty('{{ group.id }}', '{{ option.recipe_id }}') < 1" :value="'{{ group.id }}:{{ option.recipe_id }}:' + qty('{{ group.id }}', '{{ option.recipe_id }}')">
+                </div>
+                {% endfor %}
+              </fieldset>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% for group in package.groups if group.is_fixed %}
+          <p class="mt-3 text-sm text-zinc-300" x-show="packageId === '{{ package.id }}'">Incluido: {{ group.group_name }}</p>
+          {% endfor %}
+        </article>
         {% endfor %}
-      </div>
-      <div id="slots"><p class="text-sm text-zinc-400">Elige una fecha para ver los horarios.</p></div>
-      <div id="preview"></div>
-      <button class="rounded-lg border border-zinc-700 px-3 py-2 text-sm" type="button" hx-post="/c/{{ page.slug }}/preview" hx-target="#preview" hx-swap="innerHTML">Ver desglose</button>
-      <button class="primary rounded-lg px-4 py-2" type="submit">Enviar cotización</button>
-    </section>
+        <div class="space-y-5" x-show="packageId" x-transition>
+        <label class="block text-sm font-medium text-zinc-200">Invitados
+          <input name="guest_count" type="number" min="{{ page.min_guests }}" max="{{ page.max_guests }}" x-model.number="guests">
+        </label>
+        <div class="space-y-3">
+          <h3 class="text-base font-semibold text-white">Extras</h3>
+          {% for extra in page.extras %}
+          <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-zinc-900/80 p-3" data-extra="{{ extra.id }}" data-price="{{ extra.unit_price }}" data-pricing="{{ extra.pricing_type }}" data-categories="{{ extra.category_ids | join(',') }}" x-show="extraVisible('{{ extra.category_ids | join(',') }}')">
+            <div>
+              <p class="text-base text-white">{{ extra.name }}</p>
+              {% if page.show_prices %}<p class="text-sm text-[#FACC15]">{{ extra.unit_price | pesos }} {% if extra.pricing_type.value == 'PER_GUEST' %}por invitado{% else %}por unidad{% endif %}</p>{% endif %}
+            </div>
+            <input class="w-24" type="number" min="0" name="extra_qty_{{ extra.id }}" x-model.number="extraQty['{{ extra.id }}']" placeholder="0">
+            <input type="hidden" name="extra" value="{{ extra.id }}" :disabled="extraAmount('{{ extra.id }}') < 1">
+          </div>
+          {% endfor %}
+        </div>
+        </div>
+        <button class="primary rounded-xl px-5 py-2" type="button" :disabled="!packageReady()" @click="step = 4">Continuar</button>
+      </section>
+
+      <section x-show="step === 4" class="space-y-4">
+        <h2 class="text-lg font-semibold text-white">4. Datos y confirmación</h2>
+        <div class="space-y-1 rounded-xl bg-zinc-900/80 p-4 text-base text-zinc-200">
+          <p x-show="eventDate"><span class="text-zinc-400">Fecha:</span> <span x-text="eventDate"></span></p>
+          <p x-show="chosenStart()"><span class="text-zinc-400">Horario:</span> <span x-text="clockLabel(chosenStart())"></span></p>
+          <p x-show="categoryName"><span class="text-zinc-400">Categoría:</span> <span x-text="categoryName"></span></p>
+          <p x-show="packageName"><span class="text-zinc-400">Paquete:</span> <span x-text="packageName"></span></p>
+          <p><span class="text-zinc-400">Invitados:</span> <span x-text="guests"></span></p>
+          {% for package in page.packages %}
+          <div x-show="packageId === '{{ package.id }}'">
+            {% for group in package.groups if not group.is_fixed %}
+              {% for option in group.options %}
+              <p x-show="qty('{{ group.id }}', '{{ option.recipe_id }}') > 0">{{ group.group_name }}: <span x-text="qty('{{ group.id }}', '{{ option.recipe_id }}')"></span>x {{ option.recipe_name }}</p>
+              {% endfor %}
+            {% endfor %}
+          </div>
+          {% endfor %}
+          {% for extra in page.extras %}
+          <p x-show="extraAmount('{{ extra.id }}') > 0 && extraVisible('{{ extra.category_ids | join(',') }}')">Extra: <span x-text="extraAmount('{{ extra.id }}')"></span>x {{ extra.name }}</p>
+          {% endfor %}
+          {% if page.show_prices %}<p class="text-lg font-semibold text-white">Total estimado <span x-text="money(estimate())"></span></p>{% endif %}
+        </div>
+        <label class="block text-sm font-medium text-zinc-200">Nombre completo<input name="full_name" required></label>
+        <label class="block text-sm font-medium text-zinc-200">WhatsApp / Teléfono<input name="phone" x-model="phone" placeholder="+523312345678" required></label>
+        <input type="hidden" name="whatsapp_phone" :value="phone">
+        <label class="block text-sm font-medium text-zinc-200">Correo electrónico<input name="email" type="email"></label>
+        <label class="block text-sm font-medium text-zinc-200">Dirección o colonia del evento<input name="venue_address" required></label>
+        <label class="block text-sm font-medium text-zinc-200">Notas adicionales<textarea name="special_requests" rows="3"></textarea></label>
+        {% if page.zones %}
+        <label class="block text-sm font-medium text-zinc-200">Zona de entrega
+          <select name="delivery_zone_id">
+            <option value="">Sin zona</option>
+            {% for zone in page.zones %}
+            <option value="{{ zone.id }}">{{ zone.zone_name }}{% if page.show_prices %} · {{ zone.freight_cost | pesos }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </label>
+        {% endif %}
+        <input type="hidden" name="event_date" :value="eventDate">
+        <input type="hidden" name="booking" :value="booking">
+        <input type="hidden" name="start_time" :value="selectedTime">
+        <input type="hidden" name="package_id" :value="packageId">
+        <p class="text-sm text-rose-400" x-show="block" x-text="block"></p>
+        <button class="primary rounded-xl px-5 py-3 text-base" type="submit">Enviar Solicitud de Cotización</button>
+      </section>
+    </div>
+    <aside class="card space-y-2 rounded-2xl border border-zinc-800/80 p-5 lg:sticky lg:top-6">
+      <h2 class="text-lg font-semibold text-white">Tu pedido</h2>
+      <p class="text-base text-zinc-300" x-text="eventDate || 'Sin fecha'"></p>
+      <p class="text-base text-zinc-300" x-text="chosenStart() ? clockLabel(chosenStart()) : 'Sin horario'"></p>
+      <p class="text-base text-zinc-300" x-text="categoryName || 'Sin categoría'"></p>
+      <p class="text-base text-white" x-text="packageName || 'Sin paquete'"></p>
+      <p class="text-base text-zinc-300" x-text="guests + ' invitados'"></p>
+      {% if page.show_prices %}<p class="text-lg font-semibold text-[#FACC15]" x-text="money(estimate())"></p>{% endif %}
+    </aside>
   </form>
   {% endif %}
 </article>

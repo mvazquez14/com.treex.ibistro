@@ -1,0 +1,76 @@
+---
+description: Sistema de diseño UI/UX para iBistro basado en HeroUI, patrones visuales de Nuna (/settings y tablas), tipografía ampliada y sistema de notificaciones en tiempo real.
+globs: ["**/*.tsx", "**/*.ts", "**/*.css"]
+alwaysApply: true
+---
+
+# Directriz de Diseño UI/UX — iBistro (Estándar Nuna + HeroUI)
+
+## 1. Jerarquía Visual y Superficies (`Card` / `Surface`)
+* **Fondo Base:** `#060604` (`bg-background`).
+* **Contenedores Principales (`Card` / `Surface`):** `--background-secondary` (`bg-background-secondary`), bordes sutiles `border border-zinc-800/80`, radios de la escala HeroUI (`rounded-2xl`) y padding generoso (`p-6` a `p-8`).
+* **Acción neutra:** `#282725`. Acento `#FACC15`. Éxito `#7AC017`. Alerta `#FFAB63`. Crítico `#D7376E`.
+* **Iconos:** `@gravity-ui/icons` en navegación, tablas y botones. No usar `lucide-react`.
+* **Controles Internos (Inputs, Selects, Textareas, Switches, Checkboxes):**
+  * Todo control dentro de un `Card` o `Surface` DEBE usar `variant="secondary"` o `--background-tertiary` (`bg-background-tertiary`) para generar contraste claro sobre la tarjeta.
+  * **Prohibido** dejar inputs transparentes o con el mismo tono de fondo que el contenedor padre.
+  * **Prohibido** mostrar el botón nativo `<input type="file">`; toda carga de imágenes o documentos debe usar `DropZone` de HeroUI con vista previa (thumbnail/avatar/banner) y acción rápida `Restablecer / Quitar`.
+
+## 2. Escala Tipográfica Ampliada (Legibilidad Alta)
+Fuente **Inter** para títulos y cuerpo. Letter spacing `0`.
+* **Títulos de Página (`h1`):** `text-5xl font-bold leading-none text-white` (`48px`)
+* **Subtítulos de Página:** `text-base text-zinc-400`
+* **Títulos de Sección (`h2`):** `text-4xl font-semibold leading-[1.11] text-white` (`36px`)
+* **Heading 3:** `text-2xl font-semibold` (`24px`). **Heading 4:** `text-lg font-medium` (`18px`).
+* **Cuerpo:** `text-base font-normal leading-normal` (`16px`).
+* **Descripciones de Sección:** `text-sm text-zinc-400 leading-relaxed`
+* **Labels de Campos:** `text-sm font-medium text-zinc-200` (nunca `text-xs`)
+* **Texto dentro de Inputs, Tablas y Menús:** `text-base` (`16px`) en formularios e inputs, y `text-sm` (`14px`) como mínimo en encabezados de tabla y breadcrumbs.
+* **Cifras y Montos:** Usar siempre `tabular-nums`.
+
+## 3. Patrón de Formularios (Referencia: `/settings` de Nuna)
+Los formularios largos o de edición (Perfil del negocio, Nuevo paquete, Recetas, Configuración) deben abandonar el grid disperso y seguir la estructura de **2 columnas asimétricas dentro de una `Card` unificada**:
+* **Header Superior de Vista:** Breadcrumb (`text-sm`), `Card` de cabecera con ícono circular de progreso/estado, título (`text-5xl`), subtítulo (`text-base`), acción `Restablecer` y botón CTA principal.
+* **Navegación por `Tabs` (si aplica):** Pestañas limpias con indicador inferior activo (`variant="underlined"`).
+* **Layout de Secciones en Formulario (`grid-cols-1 lg:grid-cols-12 gap-8 py-8 border-b border-zinc-800/80`):**
+  * **Columna Izquierda (`lg:col-span-4`):** Título de la sección (`text-lg font-semibold text-white`) y descripción explicativa (`text-sm text-zinc-400`).
+  * **Columna Derecha (`lg:col-span-8`):** Filas horizontales alineadas (`grid-cols-1 sm:grid-cols-12 gap-4 items-center`), donde la etiqueta va a la izquierda (`sm:col-span-4 text-sm font-medium text-zinc-200`) y el control HeroUI va a la derecha (`sm:col-span-8`, `size="lg"`, `color="secondary"`).
+* **Footer de Acciones del Formulario:** Alineado con la columna derecha (`lg:col-start-5 lg:col-span-8 flex items-center gap-3 pt-6`), con botón primario (`Guardar cambios`, amarillo eléctrico `#FACC15` con texto oscuro o azul primario según contexto) y botón secundario (`Restablecer` / `Descartar`).
+
+## 4. Patrón de Tablas y Listados (Referencia: `Coupons` de Nuna)
+* **Cabecera de Vista:** Título (`text-2xl font-bold`), descripción (`text-base text-zinc-400`) y botón principal `+ Nuevo [Recurso]` alineado a la derecha (`rounded-full` o `rounded-xl`, `size="md"` o `"lg"`).
+* **Barra de Herramientas Integrada:** Buscador (`Input` con ícono de lupa, `color="secondary"`), selector de registros por página y botón `Exportar` en una barra limpia sobre la tabla.
+* **Estructura de Tabla (`Table` de HeroUI):**
+  * Encabezados en `bg-zinc-900` con texto `text-sm font-medium text-zinc-400` (sin mayúsculas forzadas apretadas).
+  * Filas amplias (`py-4`) separadas por divisores horizontales sutiles (`border-b border-zinc-800/70`), sin bordes verticales pesados.
+  * Columna principal con doble línea: título en `text-base font-semibold text-white` y subtítulo/código/categoría en `text-sm text-zinc-400`.
+  * Estados interactivos con `Switch` + `Chip` semántico (`Active` / `Activo` en verde esmeralda sutil).
+  * Columna `Actions` alineada a la derecha con botones de ícono limpios (`Editar`, `Eliminar`).
+
+## 5. Navegación Superior (Topbar) y Sistema de Notificaciones
+* **Sidebar / Topbar:**
+  * Debe existir un enlace/ítem explícito **"Dashboard"** en la barra superior (junto a *Cotizaciones* y *Calendario*) y en el menú lateral que navegue directamente a `/dashboard` (o `/`).
+  * Corregir cualquier recorte en el badge/chip del restaurante en la esquina superior derecha (`truncate max-w-[180px]`).
+* **Icono de Notificaciones con Counter + Popover Tailwind CSS:**
+  * Ubicar un botón de campana (`Bell`) en el Topbar antes del perfil del negocio.
+  * Mostrar un `Badge` / counter numérico visible (`color="warning"` o `"danger"`) cuando existan solicitudes sin leer.
+  * Al hacer clic, desplegar un **Popover estilizado tipo Tailwind CSS** (`https://heroui.com/en/docs/react/components/popover#tailwind-css`) con ancho `w-96`, encabezado (*Solicitudes y Notificaciones* + botón *Marcar todas como leídas*), lista scrolleable con avatar/ícono de evento, nombre del cliente, fecha/invitados, tiempo relativo (`hace 2 min`) y enlace directo al detalle de la cotización/solicitud.
+* **Toast de Nueva Solicitud (`bottom-center`):**
+  * Configurar el `ToastProvider` de HeroUI con `placement="bottom-center"`.
+  * Cada vez que entre una nueva solicitud de evento/cotización desde la micro-landing (o mediante el simulador/webhook en tiempo real), disparar un `addToast` con `color="success"`, título claro (ej. *"Nueva solicitud de catering recibida"*), descripción con cliente e invitados, y botón de acción rápida *"Ver solicitud"*.
+  ## 6. Contenedores Boxed Centrados (Estándar Nuna)
+* **Vistas de Formulario, Configuración y Detalle:** Nunca uses `w-full` sin límite de ancho en pantallas de escritorio. Envuelve el breadcrumb, el header card, las pestañas y las tarjetas del formulario dentro de un contenedor centrado:
+  ```tsx
+  <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+    {/* Breadcrumb, Header Card, Tabs y Form Card */}
+  </div>
+  Vistas de Tablas y Listados (Extras, Almacenes e Insumos, Equipo y Mantelería, Proveedores): Envuelve toda la vista en un contenedor boxed centrado w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6 para que el header, la barra de filtros y la tabla queden alineados y equilibrados visualmente.
+
+  7. Proporciones del Topbar e Ícono de Notificaciones
+Botón de Notificaciones:
+
+Tamaño del botón: w-10 h-10 min-w-10 rounded-full bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 (misma altura visual que la píldora del restaurante y el avatar).
+
+Tamaño del ícono Bell: w-5 h-5 (20px) en text-zinc-200.
+
+Posición del Badge (counter): Usar size="sm" con classNames={{ badge: "-top-1 -right-1 text-xs font-bold px-1.5 min-w-5 h-5" }} para que el número quede en la esquina superior derecha sin tapar el ícono de la campana.

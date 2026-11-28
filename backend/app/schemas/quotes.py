@@ -1,10 +1,10 @@
 """Contracts for the public landing and the quotes desk."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import PricingType, QuoteStatus
 from app.schemas.catalog import ExtraRead, PackageRead, QuoteExtraIn
@@ -59,6 +59,7 @@ class CalendarDay(BaseModel):
 class CategoryChip(BaseModel):
     id: UUID
     name: str
+    icon: str = ""
 
 
 class LandingPage(BaseModel):
@@ -81,6 +82,7 @@ class LandingPage(BaseModel):
     concierge_url: str
     min_guests: int
     max_guests: int
+    service_duration_minutes: int = 120
 
 
 class PublicOption(BaseModel):
@@ -104,6 +106,7 @@ class PublicPackage(BaseModel):
     category_name: str
     name: str
     description: str
+    photo_url: str | None = None
     min_guests: int
     base_price_per_guest: Decimal | None = None
     groups: list[PublicGroup]
@@ -114,6 +117,7 @@ class PublicExtra(BaseModel):
     name: str
     pricing_type: PricingType
     unit_price: Decimal | None = None
+    category_ids: list[UUID] = Field(default_factory=list)
 
 
 class PublicZone(BaseModel):
@@ -138,6 +142,25 @@ class PublicProfile(BaseModel):
     concierge_url: str
 
 
+class AvailabilityStart(BaseModel):
+    slot_id: UUID
+    start: str
+
+
+class AvailabilityDay(BaseModel):
+    date: date
+    weekday: int
+    status: str
+    available_slots: list[str]
+    bookings: list[AvailabilityStart] = Field(default_factory=list)
+
+
+class MonthAvailability(BaseModel):
+    month: str
+    service_duration_minutes: int
+    days: list[AvailabilityDay]
+
+
 class PublicSlot(BaseModel):
     id: UUID
     label: str
@@ -160,6 +183,21 @@ class PublicQuoteIn(BaseModel):
     selected_options: dict[UUID, list[UUID]] = Field(default_factory=dict)
     extras: list[QuoteExtraIn] = Field(default_factory=list)
     delivery_zone_id: UUID | None = None
+    start_time: str | None = None
+
+    @field_validator("email", "special_requests", "start_time", mode="before")
+    @classmethod
+    def empty_text_is_missing(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("delivery_zone_id", mode="before")
+    @classmethod
+    def empty_zone_is_missing(cls, value: object) -> object:
+        if value == "":
+            return None
+        return value
 
 
 class PricePreview(BaseModel):
@@ -188,12 +226,46 @@ class PublicQuoteOut(BaseModel):
     tax_amount: Decimal | None = None
     total_amount: Decimal | None = None
     tracking_url: str
+    variant_summary: str = ""
+    extras_summary: str = ""
+    client_whatsapp_url: str = ""
+
+
+class QuoteLine(BaseModel):
+    name: str
+    quantity: str
+
+
+class QuoteChoice(BaseModel):
+    group_id: UUID
+    recipe_id: UUID
+    quantity: int
+
+
+class QuoteExtraPick(BaseModel):
+    extra_id: UUID
+    name: str
+    quantity: str
 
 
 class QuoteAdjustIn(BaseModel):
     discount_amount: Decimal = Decimal("0")
     apply_tax: bool = True
     tax_rate: Decimal | None = None
+    guest_count: int | None = Field(default=None, ge=1)
+    package_id: UUID | None = None
+    slot_id: UUID | None = None
+    start_time: str | None = None
+    event_date: date | None = None
+    selected_options: dict[UUID, list[UUID]] | None = None
+    extras: list[QuoteExtraIn] | None = None
+    manual_total: Decimal | None = None
+
+
+class ScheduleChoice(BaseModel):
+    event_date: date
+    slot_id: UUID
+    start_time: str
 
 
 class QuoteDetail(BaseModel):
@@ -205,9 +277,20 @@ class QuoteDetail(BaseModel):
     phone: str
     whatsapp_phone: str
     email: str | None
+    package_id: UUID
+    slot_id: UUID
     package_name: str
+    folio: str = ""
+    category_name: str = ""
+    whatsapp_url: str = ""
+    variants: list[QuoteLine] = Field(default_factory=list)
+    extras: list[QuoteLine] = Field(default_factory=list)
+    choices: list[QuoteChoice] = Field(default_factory=list)
+    extra_picks: list[QuoteExtraPick] = Field(default_factory=list)
     event_date: date
     slot_label: str
+    start_time: str = ""
+    end_time: str = ""
     venue_address: str
     guest_count: int
     waiters_count: int
@@ -218,8 +301,11 @@ class QuoteDetail(BaseModel):
     estimated_cogs: Decimal
     special_requests: str | None
     reservation_id: UUID | None
+    can_rebook: bool = False
     apply_tax: bool
     tax_rate: Decimal
+    variant_summary: str = ""
+    created_at: datetime
 
 
 class QuotesScreen(BaseModel):

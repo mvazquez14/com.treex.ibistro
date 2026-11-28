@@ -1,5 +1,5 @@
 import { Link as RouterLink } from "@tanstack/react-router"
-import { ChevronsUpDown, LogOut, Settings } from "lucide-react"
+import { ArrowRightFromSquare as LogOut, ChevronsExpandVertical as ChevronsUpDown, Gear as Settings } from "@gravity-ui/icons"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {

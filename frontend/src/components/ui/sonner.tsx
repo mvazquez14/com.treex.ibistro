@@ -1,12 +1,12 @@
 "use client"
 
 import {
-  CircleCheckIcon,
-  InfoIcon,
-  Loader2Icon,
-  OctagonXIcon,
-  TriangleAlertIcon,
-} from "lucide-react"
+  ArrowRotateRight as Loader2Icon,
+  CircleCheck as CircleCheckIcon,
+  CircleInfo as InfoIcon,
+  OctagonXmark as OctagonXIcon,
+  TriangleExclamation as TriangleAlertIcon,
+} from "@gravity-ui/icons"
 import { useTheme } from "@/components/theme-provider"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 

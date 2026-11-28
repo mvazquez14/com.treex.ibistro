@@ -10,37 +10,52 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LayoutRouteImport } from './routes/_layout'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as RecoverPasswordRouteImport } from './routes/recover-password'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as SignupRouteImport } from './routes/signup'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
-import { Route as LayoutAdminRouteImport } from './routes/_layout/admin'
-import { Route as LayoutItemsRouteImport } from './routes/_layout/items'
+import { Route as LayoutCalendarioRouteImport } from './routes/_layout/calendario'
+import { Route as LayoutEquipmentRouteImport } from './routes/_layout/equipment'
+import { Route as LayoutIngredientsRouteImport } from './routes/_layout/ingredients'
+import { Route as LayoutMenuRouteImport } from './routes/_layout/menu'
+import { Route as LayoutPosRouteImport } from './routes/_layout/pos'
+import { Route as LayoutQuotesRouteImport } from './routes/_layout/quotes'
+import { Route as LayoutReportsRouteImport } from './routes/_layout/reports'
+import { Route as LayoutReservationsRouteImport } from './routes/_layout/reservations'
 import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
+import { Route as LayoutSuppliersRouteImport } from './routes/_layout/suppliers'
+import { Route as LayoutWarehousesRouteImport } from './routes/_layout/warehouses'
+import { Route as LayoutEquipmentIndexRouteImport } from './routes/_layout/equipment.index'
+import { Route as LayoutEquipmentAssetIdRouteImport } from './routes/_layout/equipment.$assetId'
+import { Route as LayoutEquipmentRulesRouteImport } from './routes/_layout/equipment.rules'
+import { Route as LayoutIngredientsIndexRouteImport } from './routes/_layout/ingredients.index'
+import { Route as LayoutIngredientsIngredientIdRouteImport } from './routes/_layout/ingredients.$ingredientId'
+import { Route as LayoutMenuIndexRouteImport } from './routes/_layout/menu.index'
+import { Route as LayoutMenuCategoriesRouteImport } from './routes/_layout/menu.categories'
+import { Route as LayoutMenuExtrasRouteImport } from './routes/_layout/menu.extras'
+import { Route as LayoutMenuGroupsRouteImport } from './routes/_layout/menu.groups'
+import { Route as LayoutMenuPackagesRouteImport } from './routes/_layout/menu.packages'
+import { Route as LayoutMenuRecipesRouteImport } from './routes/_layout/menu.recipes'
+import { Route as LayoutQuotesIndexRouteImport } from './routes/_layout/quotes.index'
+import { Route as LayoutQuotesQuoteIdRouteImport } from './routes/_layout/quotes.$quoteId'
+import { Route as LayoutReservationsIndexRouteImport } from './routes/_layout/reservations.index'
+import { Route as LayoutReservationsReservationIdRouteImport } from './routes/_layout/reservations.$reservationId'
+import { Route as LayoutSuppliersIndexRouteImport } from './routes/_layout/suppliers.index'
+import { Route as LayoutSuppliersSupplierIdRouteImport } from './routes/_layout/suppliers.$supplierId'
+import { Route as LayoutWarehousesIndexRouteImport } from './routes/_layout/warehouses.index'
+import { Route as LayoutWarehousesWarehouseIdRouteImport } from './routes/_layout/warehouses.$warehouseId'
+import { Route as LayoutMenuExtrasIndexRouteImport } from './routes/_layout/menu.extras.index'
+import { Route as LayoutMenuExtrasExtraIdRouteImport } from './routes/_layout/menu.extras.$extraId'
+import { Route as LayoutMenuPackagesIndexRouteImport } from './routes/_layout/menu.packages.index'
+import { Route as LayoutMenuPackagesPackageIdRouteImport } from './routes/_layout/menu.packages.$packageId'
+import { Route as LayoutMenuRecipesIndexRouteImport } from './routes/_layout/menu.recipes.index'
+import { Route as LayoutMenuRecipesRecipeIdRouteImport } from './routes/_layout/menu.recipes.$recipeId'
 
 const LayoutRoute = LayoutRouteImport.update({
   id: '/_layout',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RecoverPasswordRoute = RecoverPasswordRouteImport.update({
-  id: '/recover-password',
-  path: '/recover-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LayoutIndexRoute = LayoutIndexRouteImport.update({
@@ -48,14 +63,44 @@ const LayoutIndexRoute = LayoutIndexRouteImport.update({
   path: '/',
   getParentRoute: () => LayoutRoute,
 } as any)
-const LayoutAdminRoute = LayoutAdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
+const LayoutCalendarioRoute = LayoutCalendarioRouteImport.update({
+  id: '/calendario',
+  path: '/calendario',
   getParentRoute: () => LayoutRoute,
 } as any)
-const LayoutItemsRoute = LayoutItemsRouteImport.update({
-  id: '/items',
-  path: '/items',
+const LayoutEquipmentRoute = LayoutEquipmentRouteImport.update({
+  id: '/equipment',
+  path: '/equipment',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutIngredientsRoute = LayoutIngredientsRouteImport.update({
+  id: '/ingredients',
+  path: '/ingredients',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutMenuRoute = LayoutMenuRouteImport.update({
+  id: '/menu',
+  path: '/menu',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutPosRoute = LayoutPosRouteImport.update({
+  id: '/pos',
+  path: '/pos',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutQuotesRoute = LayoutQuotesRouteImport.update({
+  id: '/quotes',
+  path: '/quotes',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutReportsRoute = LayoutReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutReservationsRoute = LayoutReservationsRouteImport.update({
+  id: '/reservations',
+  path: '/reservations',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutSettingsRoute = LayoutSettingsRouteImport.update({
@@ -63,79 +108,377 @@ const LayoutSettingsRoute = LayoutSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutSuppliersRoute = LayoutSuppliersRouteImport.update({
+  id: '/suppliers',
+  path: '/suppliers',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutWarehousesRoute = LayoutWarehousesRouteImport.update({
+  id: '/warehouses',
+  path: '/warehouses',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutEquipmentIndexRoute = LayoutEquipmentIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LayoutEquipmentRoute,
+} as any)
+const LayoutEquipmentAssetIdRoute = LayoutEquipmentAssetIdRouteImport.update({
+  id: '/$assetId',
+  path: '/$assetId',
+  getParentRoute: () => LayoutEquipmentRoute,
+} as any)
+const LayoutEquipmentRulesRoute = LayoutEquipmentRulesRouteImport.update({
+  id: '/rules',
+  path: '/rules',
+  getParentRoute: () => LayoutEquipmentRoute,
+} as any)
+const LayoutIngredientsIndexRoute = LayoutIngredientsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LayoutIngredientsRoute,
+} as any)
+const LayoutIngredientsIngredientIdRoute =
+  LayoutIngredientsIngredientIdRouteImport.update({
+    id: '/$ingredientId',
+    path: '/$ingredientId',
+    getParentRoute: () => LayoutIngredientsRoute,
+  } as any)
+const LayoutMenuIndexRoute = LayoutMenuIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LayoutMenuRoute,
+} as any)
+const LayoutMenuCategoriesRoute = LayoutMenuCategoriesRouteImport.update({
+  id: '/categories',
+  path: '/categories',
+  getParentRoute: () => LayoutMenuRoute,
+} as any)
+const LayoutMenuExtrasRoute = LayoutMenuExtrasRouteImport.update({
+  id: '/extras',
+  path: '/extras',
+  getParentRoute: () => LayoutMenuRoute,
+} as any)
+const LayoutMenuGroupsRoute = LayoutMenuGroupsRouteImport.update({
+  id: '/groups',
+  path: '/groups',
+  getParentRoute: () => LayoutMenuRoute,
+} as any)
+const LayoutMenuPackagesRoute = LayoutMenuPackagesRouteImport.update({
+  id: '/packages',
+  path: '/packages',
+  getParentRoute: () => LayoutMenuRoute,
+} as any)
+const LayoutMenuRecipesRoute = LayoutMenuRecipesRouteImport.update({
+  id: '/recipes',
+  path: '/recipes',
+  getParentRoute: () => LayoutMenuRoute,
+} as any)
+const LayoutQuotesIndexRoute = LayoutQuotesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LayoutQuotesRoute,
+} as any)
+const LayoutQuotesQuoteIdRoute = LayoutQuotesQuoteIdRouteImport.update({
+  id: '/$quoteId',
+  path: '/$quoteId',
+  getParentRoute: () => LayoutQuotesRoute,
+} as any)
+const LayoutReservationsIndexRoute = LayoutReservationsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LayoutReservationsRoute,
+} as any)
+const LayoutReservationsReservationIdRoute =
+  LayoutReservationsReservationIdRouteImport.update({
+    id: '/$reservationId',
+    path: '/$reservationId',
+    getParentRoute: () => LayoutReservationsRoute,
+  } as any)
+const LayoutSuppliersIndexRoute = LayoutSuppliersIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LayoutSuppliersRoute,
+} as any)
+const LayoutSuppliersSupplierIdRoute =
+  LayoutSuppliersSupplierIdRouteImport.update({
+    id: '/$supplierId',
+    path: '/$supplierId',
+    getParentRoute: () => LayoutSuppliersRoute,
+  } as any)
+const LayoutWarehousesIndexRoute = LayoutWarehousesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LayoutWarehousesRoute,
+} as any)
+const LayoutWarehousesWarehouseIdRoute =
+  LayoutWarehousesWarehouseIdRouteImport.update({
+    id: '/$warehouseId',
+    path: '/$warehouseId',
+    getParentRoute: () => LayoutWarehousesRoute,
+  } as any)
+const LayoutMenuExtrasIndexRoute = LayoutMenuExtrasIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LayoutMenuExtrasRoute,
+} as any)
+const LayoutMenuExtrasExtraIdRoute = LayoutMenuExtrasExtraIdRouteImport.update({
+  id: '/$extraId',
+  path: '/$extraId',
+  getParentRoute: () => LayoutMenuExtrasRoute,
+} as any)
+const LayoutMenuPackagesIndexRoute = LayoutMenuPackagesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LayoutMenuPackagesRoute,
+} as any)
+const LayoutMenuPackagesPackageIdRoute =
+  LayoutMenuPackagesPackageIdRouteImport.update({
+    id: '/$packageId',
+    path: '/$packageId',
+    getParentRoute: () => LayoutMenuPackagesRoute,
+  } as any)
+const LayoutMenuRecipesIndexRoute = LayoutMenuRecipesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LayoutMenuRecipesRoute,
+} as any)
+const LayoutMenuRecipesRecipeIdRoute =
+  LayoutMenuRecipesRecipeIdRouteImport.update({
+    id: '/$recipeId',
+    path: '/$recipeId',
+    getParentRoute: () => LayoutMenuRecipesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof LayoutIndexRoute
-  '/login': typeof LoginRoute
-  '/recover-password': typeof RecoverPasswordRoute
-  '/reset-password': typeof ResetPasswordRoute
-  '/signup': typeof SignupRoute
-  '/admin': typeof LayoutAdminRoute
-  '/items': typeof LayoutItemsRoute
+  '/onboarding': typeof OnboardingRoute
+  '/calendario': typeof LayoutCalendarioRoute
+  '/equipment': typeof LayoutEquipmentRouteWithChildren
+  '/ingredients': typeof LayoutIngredientsRouteWithChildren
+  '/menu': typeof LayoutMenuRouteWithChildren
+  '/pos': typeof LayoutPosRoute
+  '/quotes': typeof LayoutQuotesRouteWithChildren
+  '/reports': typeof LayoutReportsRoute
+  '/reservations': typeof LayoutReservationsRouteWithChildren
   '/settings': typeof LayoutSettingsRoute
+  '/suppliers': typeof LayoutSuppliersRouteWithChildren
+  '/warehouses': typeof LayoutWarehousesRouteWithChildren
+  '/equipment/$assetId': typeof LayoutEquipmentAssetIdRoute
+  '/equipment/rules': typeof LayoutEquipmentRulesRoute
+  '/ingredients/$ingredientId': typeof LayoutIngredientsIngredientIdRoute
+  '/menu/categories': typeof LayoutMenuCategoriesRoute
+  '/menu/extras': typeof LayoutMenuExtrasRouteWithChildren
+  '/menu/groups': typeof LayoutMenuGroupsRoute
+  '/menu/packages': typeof LayoutMenuPackagesRouteWithChildren
+  '/menu/recipes': typeof LayoutMenuRecipesRouteWithChildren
+  '/quotes/$quoteId': typeof LayoutQuotesQuoteIdRoute
+  '/reservations/$reservationId': typeof LayoutReservationsReservationIdRoute
+  '/suppliers/$supplierId': typeof LayoutSuppliersSupplierIdRoute
+  '/warehouses/$warehouseId': typeof LayoutWarehousesWarehouseIdRoute
+  '/equipment/': typeof LayoutEquipmentIndexRoute
+  '/ingredients/': typeof LayoutIngredientsIndexRoute
+  '/menu/': typeof LayoutMenuIndexRoute
+  '/quotes/': typeof LayoutQuotesIndexRoute
+  '/reservations/': typeof LayoutReservationsIndexRoute
+  '/suppliers/': typeof LayoutSuppliersIndexRoute
+  '/warehouses/': typeof LayoutWarehousesIndexRoute
+  '/menu/extras/$extraId': typeof LayoutMenuExtrasExtraIdRoute
+  '/menu/packages/$packageId': typeof LayoutMenuPackagesPackageIdRoute
+  '/menu/recipes/$recipeId': typeof LayoutMenuRecipesRecipeIdRoute
+  '/menu/extras/': typeof LayoutMenuExtrasIndexRoute
+  '/menu/packages/': typeof LayoutMenuPackagesIndexRoute
+  '/menu/recipes/': typeof LayoutMenuRecipesIndexRoute
 }
 export interface FileRoutesByTo {
-  '/login': typeof LoginRoute
-  '/recover-password': typeof RecoverPasswordRoute
-  '/reset-password': typeof ResetPasswordRoute
-  '/signup': typeof SignupRoute
-  '/admin': typeof LayoutAdminRoute
-  '/items': typeof LayoutItemsRoute
+  '/onboarding': typeof OnboardingRoute
+  '/calendario': typeof LayoutCalendarioRoute
+  '/pos': typeof LayoutPosRoute
+  '/reports': typeof LayoutReportsRoute
   '/settings': typeof LayoutSettingsRoute
   '/': typeof LayoutIndexRoute
+  '/equipment/$assetId': typeof LayoutEquipmentAssetIdRoute
+  '/equipment/rules': typeof LayoutEquipmentRulesRoute
+  '/ingredients/$ingredientId': typeof LayoutIngredientsIngredientIdRoute
+  '/menu/categories': typeof LayoutMenuCategoriesRoute
+  '/menu/groups': typeof LayoutMenuGroupsRoute
+  '/quotes/$quoteId': typeof LayoutQuotesQuoteIdRoute
+  '/reservations/$reservationId': typeof LayoutReservationsReservationIdRoute
+  '/suppliers/$supplierId': typeof LayoutSuppliersSupplierIdRoute
+  '/warehouses/$warehouseId': typeof LayoutWarehousesWarehouseIdRoute
+  '/equipment': typeof LayoutEquipmentIndexRoute
+  '/ingredients': typeof LayoutIngredientsIndexRoute
+  '/menu': typeof LayoutMenuIndexRoute
+  '/quotes': typeof LayoutQuotesIndexRoute
+  '/reservations': typeof LayoutReservationsIndexRoute
+  '/suppliers': typeof LayoutSuppliersIndexRoute
+  '/warehouses': typeof LayoutWarehousesIndexRoute
+  '/menu/extras/$extraId': typeof LayoutMenuExtrasExtraIdRoute
+  '/menu/packages/$packageId': typeof LayoutMenuPackagesPackageIdRoute
+  '/menu/recipes/$recipeId': typeof LayoutMenuRecipesRecipeIdRoute
+  '/menu/extras': typeof LayoutMenuExtrasIndexRoute
+  '/menu/packages': typeof LayoutMenuPackagesIndexRoute
+  '/menu/recipes': typeof LayoutMenuRecipesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_layout': typeof LayoutRouteWithChildren
-  '/login': typeof LoginRoute
-  '/recover-password': typeof RecoverPasswordRoute
-  '/reset-password': typeof ResetPasswordRoute
-  '/signup': typeof SignupRoute
-  '/_layout/admin': typeof LayoutAdminRoute
-  '/_layout/items': typeof LayoutItemsRoute
+  '/onboarding': typeof OnboardingRoute
+  '/_layout/calendario': typeof LayoutCalendarioRoute
+  '/_layout/equipment': typeof LayoutEquipmentRouteWithChildren
+  '/_layout/ingredients': typeof LayoutIngredientsRouteWithChildren
+  '/_layout/menu': typeof LayoutMenuRouteWithChildren
+  '/_layout/pos': typeof LayoutPosRoute
+  '/_layout/quotes': typeof LayoutQuotesRouteWithChildren
+  '/_layout/reports': typeof LayoutReportsRoute
+  '/_layout/reservations': typeof LayoutReservationsRouteWithChildren
   '/_layout/settings': typeof LayoutSettingsRoute
+  '/_layout/suppliers': typeof LayoutSuppliersRouteWithChildren
+  '/_layout/warehouses': typeof LayoutWarehousesRouteWithChildren
   '/_layout/': typeof LayoutIndexRoute
+  '/_layout/equipment/$assetId': typeof LayoutEquipmentAssetIdRoute
+  '/_layout/equipment/rules': typeof LayoutEquipmentRulesRoute
+  '/_layout/ingredients/$ingredientId': typeof LayoutIngredientsIngredientIdRoute
+  '/_layout/menu/categories': typeof LayoutMenuCategoriesRoute
+  '/_layout/menu/extras': typeof LayoutMenuExtrasRouteWithChildren
+  '/_layout/menu/groups': typeof LayoutMenuGroupsRoute
+  '/_layout/menu/packages': typeof LayoutMenuPackagesRouteWithChildren
+  '/_layout/menu/recipes': typeof LayoutMenuRecipesRouteWithChildren
+  '/_layout/quotes/$quoteId': typeof LayoutQuotesQuoteIdRoute
+  '/_layout/reservations/$reservationId': typeof LayoutReservationsReservationIdRoute
+  '/_layout/suppliers/$supplierId': typeof LayoutSuppliersSupplierIdRoute
+  '/_layout/warehouses/$warehouseId': typeof LayoutWarehousesWarehouseIdRoute
+  '/_layout/equipment/': typeof LayoutEquipmentIndexRoute
+  '/_layout/ingredients/': typeof LayoutIngredientsIndexRoute
+  '/_layout/menu/': typeof LayoutMenuIndexRoute
+  '/_layout/quotes/': typeof LayoutQuotesIndexRoute
+  '/_layout/reservations/': typeof LayoutReservationsIndexRoute
+  '/_layout/suppliers/': typeof LayoutSuppliersIndexRoute
+  '/_layout/warehouses/': typeof LayoutWarehousesIndexRoute
+  '/_layout/menu/extras/$extraId': typeof LayoutMenuExtrasExtraIdRoute
+  '/_layout/menu/packages/$packageId': typeof LayoutMenuPackagesPackageIdRoute
+  '/_layout/menu/recipes/$recipeId': typeof LayoutMenuRecipesRecipeIdRoute
+  '/_layout/menu/extras/': typeof LayoutMenuExtrasIndexRoute
+  '/_layout/menu/packages/': typeof LayoutMenuPackagesIndexRoute
+  '/_layout/menu/recipes/': typeof LayoutMenuRecipesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/login'
-    | '/recover-password'
-    | '/reset-password'
-    | '/signup'
-    | '/admin'
-    | '/items'
+    | '/onboarding'
+    | '/calendario'
+    | '/equipment'
+    | '/ingredients'
+    | '/menu'
+    | '/pos'
+    | '/quotes'
+    | '/reports'
+    | '/reservations'
     | '/settings'
+    | '/suppliers'
+    | '/warehouses'
+    | '/equipment/$assetId'
+    | '/equipment/rules'
+    | '/ingredients/$ingredientId'
+    | '/menu/categories'
+    | '/menu/extras'
+    | '/menu/groups'
+    | '/menu/packages'
+    | '/menu/recipes'
+    | '/quotes/$quoteId'
+    | '/reservations/$reservationId'
+    | '/suppliers/$supplierId'
+    | '/warehouses/$warehouseId'
+    | '/equipment/'
+    | '/ingredients/'
+    | '/menu/'
+    | '/quotes/'
+    | '/reservations/'
+    | '/suppliers/'
+    | '/warehouses/'
+    | '/menu/extras/$extraId'
+    | '/menu/packages/$packageId'
+    | '/menu/recipes/$recipeId'
+    | '/menu/extras/'
+    | '/menu/packages/'
+    | '/menu/recipes/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/login'
-    | '/recover-password'
-    | '/reset-password'
-    | '/signup'
-    | '/admin'
-    | '/items'
+    | '/onboarding'
+    | '/calendario'
+    | '/pos'
+    | '/reports'
     | '/settings'
     | '/'
+    | '/equipment/$assetId'
+    | '/equipment/rules'
+    | '/ingredients/$ingredientId'
+    | '/menu/categories'
+    | '/menu/groups'
+    | '/quotes/$quoteId'
+    | '/reservations/$reservationId'
+    | '/suppliers/$supplierId'
+    | '/warehouses/$warehouseId'
+    | '/equipment'
+    | '/ingredients'
+    | '/menu'
+    | '/quotes'
+    | '/reservations'
+    | '/suppliers'
+    | '/warehouses'
+    | '/menu/extras/$extraId'
+    | '/menu/packages/$packageId'
+    | '/menu/recipes/$recipeId'
+    | '/menu/extras'
+    | '/menu/packages'
+    | '/menu/recipes'
   id:
     | '__root__'
     | '/_layout'
-    | '/login'
-    | '/recover-password'
-    | '/reset-password'
-    | '/signup'
-    | '/_layout/admin'
-    | '/_layout/items'
+    | '/onboarding'
+    | '/_layout/calendario'
+    | '/_layout/equipment'
+    | '/_layout/ingredients'
+    | '/_layout/menu'
+    | '/_layout/pos'
+    | '/_layout/quotes'
+    | '/_layout/reports'
+    | '/_layout/reservations'
     | '/_layout/settings'
+    | '/_layout/suppliers'
+    | '/_layout/warehouses'
     | '/_layout/'
+    | '/_layout/equipment/$assetId'
+    | '/_layout/equipment/rules'
+    | '/_layout/ingredients/$ingredientId'
+    | '/_layout/menu/categories'
+    | '/_layout/menu/extras'
+    | '/_layout/menu/groups'
+    | '/_layout/menu/packages'
+    | '/_layout/menu/recipes'
+    | '/_layout/quotes/$quoteId'
+    | '/_layout/reservations/$reservationId'
+    | '/_layout/suppliers/$supplierId'
+    | '/_layout/warehouses/$warehouseId'
+    | '/_layout/equipment/'
+    | '/_layout/ingredients/'
+    | '/_layout/menu/'
+    | '/_layout/quotes/'
+    | '/_layout/reservations/'
+    | '/_layout/suppliers/'
+    | '/_layout/warehouses/'
+    | '/_layout/menu/extras/$extraId'
+    | '/_layout/menu/packages/$packageId'
+    | '/_layout/menu/recipes/$recipeId'
+    | '/_layout/menu/extras/'
+    | '/_layout/menu/packages/'
+    | '/_layout/menu/recipes/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   LayoutRoute: typeof LayoutRouteWithChildren
-  LoginRoute: typeof LoginRoute
-  RecoverPasswordRoute: typeof RecoverPasswordRoute
-  ResetPasswordRoute: typeof ResetPasswordRoute
-  SignupRoute: typeof SignupRoute
+  OnboardingRoute: typeof OnboardingRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -147,32 +490,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/recover-password': {
-      id: '/recover-password'
-      path: '/recover-password'
-      fullPath: '/recover-password'
-      preLoaderRoute: typeof RecoverPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_layout/': {
@@ -182,18 +504,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/admin': {
-      id: '/_layout/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof LayoutAdminRouteImport
+    '/_layout/calendario': {
+      id: '/_layout/calendario'
+      path: '/calendario'
+      fullPath: '/calendario'
+      preLoaderRoute: typeof LayoutCalendarioRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/items': {
-      id: '/_layout/items'
-      path: '/items'
-      fullPath: '/items'
-      preLoaderRoute: typeof LayoutItemsRouteImport
+    '/_layout/equipment': {
+      id: '/_layout/equipment'
+      path: '/equipment'
+      fullPath: '/equipment'
+      preLoaderRoute: typeof LayoutEquipmentRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/ingredients': {
+      id: '/_layout/ingredients'
+      path: '/ingredients'
+      fullPath: '/ingredients'
+      preLoaderRoute: typeof LayoutIngredientsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/menu': {
+      id: '/_layout/menu'
+      path: '/menu'
+      fullPath: '/menu'
+      preLoaderRoute: typeof LayoutMenuRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/pos': {
+      id: '/_layout/pos'
+      path: '/pos'
+      fullPath: '/pos'
+      preLoaderRoute: typeof LayoutPosRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/quotes': {
+      id: '/_layout/quotes'
+      path: '/quotes'
+      fullPath: '/quotes'
+      preLoaderRoute: typeof LayoutQuotesRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/reports': {
+      id: '/_layout/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof LayoutReportsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/reservations': {
+      id: '/_layout/reservations'
+      path: '/reservations'
+      fullPath: '/reservations'
+      preLoaderRoute: typeof LayoutReservationsRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/settings': {
@@ -203,20 +567,369 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutSettingsRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/suppliers': {
+      id: '/_layout/suppliers'
+      path: '/suppliers'
+      fullPath: '/suppliers'
+      preLoaderRoute: typeof LayoutSuppliersRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/warehouses': {
+      id: '/_layout/warehouses'
+      path: '/warehouses'
+      fullPath: '/warehouses'
+      preLoaderRoute: typeof LayoutWarehousesRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/equipment/': {
+      id: '/_layout/equipment/'
+      path: '/'
+      fullPath: '/equipment/'
+      preLoaderRoute: typeof LayoutEquipmentIndexRouteImport
+      parentRoute: typeof LayoutEquipmentRoute
+    }
+    '/_layout/equipment/$assetId': {
+      id: '/_layout/equipment/$assetId'
+      path: '/$assetId'
+      fullPath: '/equipment/$assetId'
+      preLoaderRoute: typeof LayoutEquipmentAssetIdRouteImport
+      parentRoute: typeof LayoutEquipmentRoute
+    }
+    '/_layout/equipment/rules': {
+      id: '/_layout/equipment/rules'
+      path: '/rules'
+      fullPath: '/equipment/rules'
+      preLoaderRoute: typeof LayoutEquipmentRulesRouteImport
+      parentRoute: typeof LayoutEquipmentRoute
+    }
+    '/_layout/ingredients/': {
+      id: '/_layout/ingredients/'
+      path: '/'
+      fullPath: '/ingredients/'
+      preLoaderRoute: typeof LayoutIngredientsIndexRouteImport
+      parentRoute: typeof LayoutIngredientsRoute
+    }
+    '/_layout/ingredients/$ingredientId': {
+      id: '/_layout/ingredients/$ingredientId'
+      path: '/$ingredientId'
+      fullPath: '/ingredients/$ingredientId'
+      preLoaderRoute: typeof LayoutIngredientsIngredientIdRouteImport
+      parentRoute: typeof LayoutIngredientsRoute
+    }
+    '/_layout/menu/': {
+      id: '/_layout/menu/'
+      path: '/'
+      fullPath: '/menu/'
+      preLoaderRoute: typeof LayoutMenuIndexRouteImport
+      parentRoute: typeof LayoutMenuRoute
+    }
+    '/_layout/menu/categories': {
+      id: '/_layout/menu/categories'
+      path: '/categories'
+      fullPath: '/menu/categories'
+      preLoaderRoute: typeof LayoutMenuCategoriesRouteImport
+      parentRoute: typeof LayoutMenuRoute
+    }
+    '/_layout/menu/extras': {
+      id: '/_layout/menu/extras'
+      path: '/extras'
+      fullPath: '/menu/extras'
+      preLoaderRoute: typeof LayoutMenuExtrasRouteImport
+      parentRoute: typeof LayoutMenuRoute
+    }
+    '/_layout/menu/groups': {
+      id: '/_layout/menu/groups'
+      path: '/groups'
+      fullPath: '/menu/groups'
+      preLoaderRoute: typeof LayoutMenuGroupsRouteImport
+      parentRoute: typeof LayoutMenuRoute
+    }
+    '/_layout/menu/packages': {
+      id: '/_layout/menu/packages'
+      path: '/packages'
+      fullPath: '/menu/packages'
+      preLoaderRoute: typeof LayoutMenuPackagesRouteImport
+      parentRoute: typeof LayoutMenuRoute
+    }
+    '/_layout/menu/recipes': {
+      id: '/_layout/menu/recipes'
+      path: '/recipes'
+      fullPath: '/menu/recipes'
+      preLoaderRoute: typeof LayoutMenuRecipesRouteImport
+      parentRoute: typeof LayoutMenuRoute
+    }
+    '/_layout/quotes/': {
+      id: '/_layout/quotes/'
+      path: '/'
+      fullPath: '/quotes/'
+      preLoaderRoute: typeof LayoutQuotesIndexRouteImport
+      parentRoute: typeof LayoutQuotesRoute
+    }
+    '/_layout/quotes/$quoteId': {
+      id: '/_layout/quotes/$quoteId'
+      path: '/$quoteId'
+      fullPath: '/quotes/$quoteId'
+      preLoaderRoute: typeof LayoutQuotesQuoteIdRouteImport
+      parentRoute: typeof LayoutQuotesRoute
+    }
+    '/_layout/reservations/': {
+      id: '/_layout/reservations/'
+      path: '/'
+      fullPath: '/reservations/'
+      preLoaderRoute: typeof LayoutReservationsIndexRouteImport
+      parentRoute: typeof LayoutReservationsRoute
+    }
+    '/_layout/reservations/$reservationId': {
+      id: '/_layout/reservations/$reservationId'
+      path: '/$reservationId'
+      fullPath: '/reservations/$reservationId'
+      preLoaderRoute: typeof LayoutReservationsReservationIdRouteImport
+      parentRoute: typeof LayoutReservationsRoute
+    }
+    '/_layout/suppliers/': {
+      id: '/_layout/suppliers/'
+      path: '/'
+      fullPath: '/suppliers/'
+      preLoaderRoute: typeof LayoutSuppliersIndexRouteImport
+      parentRoute: typeof LayoutSuppliersRoute
+    }
+    '/_layout/suppliers/$supplierId': {
+      id: '/_layout/suppliers/$supplierId'
+      path: '/$supplierId'
+      fullPath: '/suppliers/$supplierId'
+      preLoaderRoute: typeof LayoutSuppliersSupplierIdRouteImport
+      parentRoute: typeof LayoutSuppliersRoute
+    }
+    '/_layout/warehouses/': {
+      id: '/_layout/warehouses/'
+      path: '/'
+      fullPath: '/warehouses/'
+      preLoaderRoute: typeof LayoutWarehousesIndexRouteImport
+      parentRoute: typeof LayoutWarehousesRoute
+    }
+    '/_layout/warehouses/$warehouseId': {
+      id: '/_layout/warehouses/$warehouseId'
+      path: '/$warehouseId'
+      fullPath: '/warehouses/$warehouseId'
+      preLoaderRoute: typeof LayoutWarehousesWarehouseIdRouteImport
+      parentRoute: typeof LayoutWarehousesRoute
+    }
+    '/_layout/menu/extras/': {
+      id: '/_layout/menu/extras/'
+      path: '/'
+      fullPath: '/menu/extras/'
+      preLoaderRoute: typeof LayoutMenuExtrasIndexRouteImport
+      parentRoute: typeof LayoutMenuExtrasRoute
+    }
+    '/_layout/menu/extras/$extraId': {
+      id: '/_layout/menu/extras/$extraId'
+      path: '/$extraId'
+      fullPath: '/menu/extras/$extraId'
+      preLoaderRoute: typeof LayoutMenuExtrasExtraIdRouteImport
+      parentRoute: typeof LayoutMenuExtrasRoute
+    }
+    '/_layout/menu/packages/': {
+      id: '/_layout/menu/packages/'
+      path: '/'
+      fullPath: '/menu/packages/'
+      preLoaderRoute: typeof LayoutMenuPackagesIndexRouteImport
+      parentRoute: typeof LayoutMenuPackagesRoute
+    }
+    '/_layout/menu/packages/$packageId': {
+      id: '/_layout/menu/packages/$packageId'
+      path: '/$packageId'
+      fullPath: '/menu/packages/$packageId'
+      preLoaderRoute: typeof LayoutMenuPackagesPackageIdRouteImport
+      parentRoute: typeof LayoutMenuPackagesRoute
+    }
+    '/_layout/menu/recipes/': {
+      id: '/_layout/menu/recipes/'
+      path: '/'
+      fullPath: '/menu/recipes/'
+      preLoaderRoute: typeof LayoutMenuRecipesIndexRouteImport
+      parentRoute: typeof LayoutMenuRecipesRoute
+    }
+    '/_layout/menu/recipes/$recipeId': {
+      id: '/_layout/menu/recipes/$recipeId'
+      path: '/$recipeId'
+      fullPath: '/menu/recipes/$recipeId'
+      preLoaderRoute: typeof LayoutMenuRecipesRecipeIdRouteImport
+      parentRoute: typeof LayoutMenuRecipesRoute
+    }
   }
 }
 
+interface LayoutEquipmentRouteChildren {
+  LayoutEquipmentAssetIdRoute: typeof LayoutEquipmentAssetIdRoute
+  LayoutEquipmentRulesRoute: typeof LayoutEquipmentRulesRoute
+  LayoutEquipmentIndexRoute: typeof LayoutEquipmentIndexRoute
+}
+
+const LayoutEquipmentRouteChildren: LayoutEquipmentRouteChildren = {
+  LayoutEquipmentAssetIdRoute: LayoutEquipmentAssetIdRoute,
+  LayoutEquipmentRulesRoute: LayoutEquipmentRulesRoute,
+  LayoutEquipmentIndexRoute: LayoutEquipmentIndexRoute,
+}
+
+const LayoutEquipmentRouteWithChildren = LayoutEquipmentRoute._addFileChildren(
+  LayoutEquipmentRouteChildren,
+)
+
+interface LayoutIngredientsRouteChildren {
+  LayoutIngredientsIngredientIdRoute: typeof LayoutIngredientsIngredientIdRoute
+  LayoutIngredientsIndexRoute: typeof LayoutIngredientsIndexRoute
+}
+
+const LayoutIngredientsRouteChildren: LayoutIngredientsRouteChildren = {
+  LayoutIngredientsIngredientIdRoute: LayoutIngredientsIngredientIdRoute,
+  LayoutIngredientsIndexRoute: LayoutIngredientsIndexRoute,
+}
+
+const LayoutIngredientsRouteWithChildren =
+  LayoutIngredientsRoute._addFileChildren(LayoutIngredientsRouteChildren)
+
+interface LayoutMenuExtrasRouteChildren {
+  LayoutMenuExtrasExtraIdRoute: typeof LayoutMenuExtrasExtraIdRoute
+  LayoutMenuExtrasIndexRoute: typeof LayoutMenuExtrasIndexRoute
+}
+
+const LayoutMenuExtrasRouteChildren: LayoutMenuExtrasRouteChildren = {
+  LayoutMenuExtrasExtraIdRoute: LayoutMenuExtrasExtraIdRoute,
+  LayoutMenuExtrasIndexRoute: LayoutMenuExtrasIndexRoute,
+}
+
+const LayoutMenuExtrasRouteWithChildren =
+  LayoutMenuExtrasRoute._addFileChildren(LayoutMenuExtrasRouteChildren)
+
+interface LayoutMenuPackagesRouteChildren {
+  LayoutMenuPackagesPackageIdRoute: typeof LayoutMenuPackagesPackageIdRoute
+  LayoutMenuPackagesIndexRoute: typeof LayoutMenuPackagesIndexRoute
+}
+
+const LayoutMenuPackagesRouteChildren: LayoutMenuPackagesRouteChildren = {
+  LayoutMenuPackagesPackageIdRoute: LayoutMenuPackagesPackageIdRoute,
+  LayoutMenuPackagesIndexRoute: LayoutMenuPackagesIndexRoute,
+}
+
+const LayoutMenuPackagesRouteWithChildren =
+  LayoutMenuPackagesRoute._addFileChildren(LayoutMenuPackagesRouteChildren)
+
+interface LayoutMenuRecipesRouteChildren {
+  LayoutMenuRecipesRecipeIdRoute: typeof LayoutMenuRecipesRecipeIdRoute
+  LayoutMenuRecipesIndexRoute: typeof LayoutMenuRecipesIndexRoute
+}
+
+const LayoutMenuRecipesRouteChildren: LayoutMenuRecipesRouteChildren = {
+  LayoutMenuRecipesRecipeIdRoute: LayoutMenuRecipesRecipeIdRoute,
+  LayoutMenuRecipesIndexRoute: LayoutMenuRecipesIndexRoute,
+}
+
+const LayoutMenuRecipesRouteWithChildren =
+  LayoutMenuRecipesRoute._addFileChildren(LayoutMenuRecipesRouteChildren)
+
+interface LayoutMenuRouteChildren {
+  LayoutMenuCategoriesRoute: typeof LayoutMenuCategoriesRoute
+  LayoutMenuExtrasRoute: typeof LayoutMenuExtrasRouteWithChildren
+  LayoutMenuGroupsRoute: typeof LayoutMenuGroupsRoute
+  LayoutMenuPackagesRoute: typeof LayoutMenuPackagesRouteWithChildren
+  LayoutMenuRecipesRoute: typeof LayoutMenuRecipesRouteWithChildren
+  LayoutMenuIndexRoute: typeof LayoutMenuIndexRoute
+}
+
+const LayoutMenuRouteChildren: LayoutMenuRouteChildren = {
+  LayoutMenuCategoriesRoute: LayoutMenuCategoriesRoute,
+  LayoutMenuExtrasRoute: LayoutMenuExtrasRouteWithChildren,
+  LayoutMenuGroupsRoute: LayoutMenuGroupsRoute,
+  LayoutMenuPackagesRoute: LayoutMenuPackagesRouteWithChildren,
+  LayoutMenuRecipesRoute: LayoutMenuRecipesRouteWithChildren,
+  LayoutMenuIndexRoute: LayoutMenuIndexRoute,
+}
+
+const LayoutMenuRouteWithChildren = LayoutMenuRoute._addFileChildren(
+  LayoutMenuRouteChildren,
+)
+
+interface LayoutQuotesRouteChildren {
+  LayoutQuotesQuoteIdRoute: typeof LayoutQuotesQuoteIdRoute
+  LayoutQuotesIndexRoute: typeof LayoutQuotesIndexRoute
+}
+
+const LayoutQuotesRouteChildren: LayoutQuotesRouteChildren = {
+  LayoutQuotesQuoteIdRoute: LayoutQuotesQuoteIdRoute,
+  LayoutQuotesIndexRoute: LayoutQuotesIndexRoute,
+}
+
+const LayoutQuotesRouteWithChildren = LayoutQuotesRoute._addFileChildren(
+  LayoutQuotesRouteChildren,
+)
+
+interface LayoutReservationsRouteChildren {
+  LayoutReservationsReservationIdRoute: typeof LayoutReservationsReservationIdRoute
+  LayoutReservationsIndexRoute: typeof LayoutReservationsIndexRoute
+}
+
+const LayoutReservationsRouteChildren: LayoutReservationsRouteChildren = {
+  LayoutReservationsReservationIdRoute: LayoutReservationsReservationIdRoute,
+  LayoutReservationsIndexRoute: LayoutReservationsIndexRoute,
+}
+
+const LayoutReservationsRouteWithChildren =
+  LayoutReservationsRoute._addFileChildren(LayoutReservationsRouteChildren)
+
+interface LayoutSuppliersRouteChildren {
+  LayoutSuppliersSupplierIdRoute: typeof LayoutSuppliersSupplierIdRoute
+  LayoutSuppliersIndexRoute: typeof LayoutSuppliersIndexRoute
+}
+
+const LayoutSuppliersRouteChildren: LayoutSuppliersRouteChildren = {
+  LayoutSuppliersSupplierIdRoute: LayoutSuppliersSupplierIdRoute,
+  LayoutSuppliersIndexRoute: LayoutSuppliersIndexRoute,
+}
+
+const LayoutSuppliersRouteWithChildren = LayoutSuppliersRoute._addFileChildren(
+  LayoutSuppliersRouteChildren,
+)
+
+interface LayoutWarehousesRouteChildren {
+  LayoutWarehousesWarehouseIdRoute: typeof LayoutWarehousesWarehouseIdRoute
+  LayoutWarehousesIndexRoute: typeof LayoutWarehousesIndexRoute
+}
+
+const LayoutWarehousesRouteChildren: LayoutWarehousesRouteChildren = {
+  LayoutWarehousesWarehouseIdRoute: LayoutWarehousesWarehouseIdRoute,
+  LayoutWarehousesIndexRoute: LayoutWarehousesIndexRoute,
+}
+
+const LayoutWarehousesRouteWithChildren =
+  LayoutWarehousesRoute._addFileChildren(LayoutWarehousesRouteChildren)
+
 interface LayoutRouteChildren {
-  LayoutAdminRoute: typeof LayoutAdminRoute
-  LayoutItemsRoute: typeof LayoutItemsRoute
+  LayoutCalendarioRoute: typeof LayoutCalendarioRoute
+  LayoutEquipmentRoute: typeof LayoutEquipmentRouteWithChildren
+  LayoutIngredientsRoute: typeof LayoutIngredientsRouteWithChildren
+  LayoutMenuRoute: typeof LayoutMenuRouteWithChildren
+  LayoutPosRoute: typeof LayoutPosRoute
+  LayoutQuotesRoute: typeof LayoutQuotesRouteWithChildren
+  LayoutReportsRoute: typeof LayoutReportsRoute
+  LayoutReservationsRoute: typeof LayoutReservationsRouteWithChildren
   LayoutSettingsRoute: typeof LayoutSettingsRoute
+  LayoutSuppliersRoute: typeof LayoutSuppliersRouteWithChildren
+  LayoutWarehousesRoute: typeof LayoutWarehousesRouteWithChildren
   LayoutIndexRoute: typeof LayoutIndexRoute
 }
 
 const LayoutRouteChildren: LayoutRouteChildren = {
-  LayoutAdminRoute: LayoutAdminRoute,
-  LayoutItemsRoute: LayoutItemsRoute,
+  LayoutCalendarioRoute: LayoutCalendarioRoute,
+  LayoutEquipmentRoute: LayoutEquipmentRouteWithChildren,
+  LayoutIngredientsRoute: LayoutIngredientsRouteWithChildren,
+  LayoutMenuRoute: LayoutMenuRouteWithChildren,
+  LayoutPosRoute: LayoutPosRoute,
+  LayoutQuotesRoute: LayoutQuotesRouteWithChildren,
+  LayoutReportsRoute: LayoutReportsRoute,
+  LayoutReservationsRoute: LayoutReservationsRouteWithChildren,
   LayoutSettingsRoute: LayoutSettingsRoute,
+  LayoutSuppliersRoute: LayoutSuppliersRouteWithChildren,
+  LayoutWarehousesRoute: LayoutWarehousesRouteWithChildren,
   LayoutIndexRoute: LayoutIndexRoute,
 }
 
@@ -225,10 +938,7 @@ const LayoutRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   LayoutRoute: LayoutRouteWithChildren,
-  LoginRoute: LoginRoute,
-  RecoverPasswordRoute: RecoverPasswordRoute,
-  ResetPasswordRoute: ResetPasswordRoute,
-  SignupRoute: SignupRoute,
+  OnboardingRoute: OnboardingRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
